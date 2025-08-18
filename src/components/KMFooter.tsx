@@ -1,5 +1,11 @@
 import React, { useEffect, useState, type JSX } from "react";
 import { motion, useReducedMotion, type Variants } from "framer-motion";
+import {
+  FaTwitter,
+  FaFacebookF,
+  FaInstagram,
+  FaWhatsapp,
+} from "react-icons/fa";
 
 function KMFooter(): JSX.Element {
   const [email, setEmail] = useState("");
@@ -92,6 +98,28 @@ function KMFooter(): JSX.Element {
     : {
         hover: { y: -3, transition: { duration: 0.18 } },
       };
+
+  // helper to render icon buttons consistently
+  const SocialButton = ({
+    href,
+    label,
+    children,
+  }: {
+    href: string;
+    label: string;
+    children: React.ReactNode;
+  }) => (
+    <motion.a
+      href={href}
+      aria-label={label}
+      title={label}
+      whileHover="hover"
+      variants={iconVariant}
+      className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/6 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-karibaTeal/40"
+    >
+      {children}
+    </motion.a>
+  );
 
   return (
     <footer className="bg-karibaNavy text-karibaSand py-12">
@@ -236,123 +264,21 @@ function KMFooter(): JSX.Element {
         <div>
           <h5 className="font-semibold">Follow</h5>
           <div className="flex gap-3 mt-2">
-            {/* X (Twitter) */}
-            <motion.a
-              href="#"
-              aria-label="X (Twitter)"
-              whileHover="hover"
-              variants={iconVariant}
-              className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/6 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-karibaTeal/40"
-            >
-              <svg
-                className="w-4 h-4 text-karibaSand"
-                viewBox="0 0 24 24"
-                fill="none"
-                aria-hidden
-              >
-                <path
-                  d="M20 6L11.5 14.5M11.5 6L20 14.5"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </motion.a>
+            <SocialButton href="#" label="X (Twitter)">
+              <FaTwitter size={16} className="text-karibaSand" aria-hidden />
+            </SocialButton>
 
-            {/* Facebook */}
-            <motion.a
-              href="#"
-              aria-label="Facebook"
-              whileHover="hover"
-              variants={iconVariant}
-              className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/6 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-karibaTeal/40"
-            >
-              <svg
-                className="w-4 h-4 text-karibaSand"
-                viewBox="0 0 24 24"
-                fill="none"
-                aria-hidden
-              >
-                <path
-                  d="M15 8h2V5.5a1.5 1.5 0 00-1.5-1.5H13v3h1.5V10H13v7h-3v-7H8V8h2V6.5A2.5 2.5 0 0112.5 4H15v4z"
-                  stroke="currentColor"
-                  strokeWidth="0.9"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  fill="none"
-                />
-              </svg>
-            </motion.a>
+            <SocialButton href="#" label="Facebook">
+              <FaFacebookF size={16} className="text-karibaSand" aria-hidden />
+            </SocialButton>
 
-            {/* Instagram */}
-            <motion.a
-              href="#"
-              aria-label="Instagram"
-              whileHover="hover"
-              variants={iconVariant}
-              className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/6 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-karibaTeal/40"
-            >
-              <svg
-                className="w-4 h-4 text-karibaSand"
-                viewBox="0 0 24 24"
-                fill="none"
-                aria-hidden
-              >
-                <rect
-                  x="3"
-                  y="3"
-                  width="18"
-                  height="18"
-                  rx="5"
-                  stroke="currentColor"
-                  strokeWidth="1.2"
-                  fill="none"
-                />
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="3.2"
-                  stroke="currentColor"
-                  strokeWidth="1.2"
-                  fill="none"
-                />
-                <circle cx="17.5" cy="6.5" r="0.7" fill="currentColor" />
-              </svg>
-            </motion.a>
+            <SocialButton href="#" label="Instagram">
+              <FaInstagram size={16} className="text-karibaSand" aria-hidden />
+            </SocialButton>
 
-            {/* WhatsApp */}
-            <motion.a
-              href="#"
-              aria-label="WhatsApp"
-              whileHover="hover"
-              variants={iconVariant}
-              className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/6 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-karibaTeal/40"
-            >
-              <svg
-                className="w-4 h-4 text-karibaSand"
-                viewBox="0 0 24 24"
-                fill="none"
-                aria-hidden
-              >
-                <path
-                  d="M20.5 11.5A8.5 8.5 0 114.3 19L3 21l2.3-.7A8.5 8.5 0 0020.5 11.5z"
-                  stroke="currentColor"
-                  strokeWidth="1.1"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  fill="none"
-                />
-                <path
-                  d="M15.2 13.3c-.3-.1-1.7-.9-1.9-1-.2-.1-.3-.1-.5.1-.2.3-.6.9-.7 1.1-.1.2-.2.2-.5.1-1.1-.5-2-1.9-2.3-3.4-.1-.3 0-.5.1-.6.1-.1.3-.2.5-.2.2 0 .5 0 .8.1.3.1.8.1 1.1.1.3 0 .5-.1.7-.1.2 0 .4-.1.6.2.2.3.8 1 1 1.2.2.2.3.4.2.7-.1.3-.5 1.1-.7 1.4-.2.3-.4.3-.7.2z"
-                  stroke="currentColor"
-                  strokeWidth="0.9"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  fill="none"
-                />
-              </svg>
-            </motion.a>
+            <SocialButton href="#" label="WhatsApp">
+              <FaWhatsapp size={16} className="text-karibaSand" aria-hidden />
+            </SocialButton>
           </div>
 
           <nav className="mt-4 text-sm">
