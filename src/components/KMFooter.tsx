@@ -125,7 +125,7 @@ function KMFooter(): JSX.Element {
     <footer className="bg-karibaNavy text-karibaSand py-12">
       <div className="max-w-6xl mx-auto px-4 grid md:grid-cols-3 gap-8">
         <div>
-          <div className="font-serif text-2xl font-bold">KaribaMagazine</div>
+          <div className="font-serif text-2xl font-bold">TheKaribaMagazine</div>
           <p className="text-sm mt-3 text-karibaSand/80">
             In-depth features, photo essays and journalism from the Kariba
             region.
@@ -299,7 +299,7 @@ function KMFooter(): JSX.Element {
       </div>
 
       <div className="mt-10 text-center text-xs text-karibaSand/60">
-        © {new Date().getFullYear()} KaribaMagazine. All rights reserved.
+        © {new Date().getFullYear()} TheKaribaMagazine. All rights reserved.
       </div>
     </footer>
   );

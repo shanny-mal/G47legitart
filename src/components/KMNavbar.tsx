@@ -92,18 +92,18 @@ function KMNavbar(): JSX.Element {
         {/* Logo + Name */}
         <Link
           to="/"
-          aria-label="KaribaMagazine home"
+          aria-label="TheKaribaMagazine home"
           className="flex items-center gap-3 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-karibaTeal/40"
         >
           <motion.div
             {...(logoAnim ?? {})}
             className="w-12 h-12 rounded-md overflow-hidden flex items-center justify-center bg-white/10 shadow-sm"
-            title="KaribaMagazine"
+            title="TheKaribaMagazine"
             aria-hidden="false"
           >
             <img
               src={kmlogo}
-              alt="KaribaMagazine logo"
+              alt="TheKaribaMagazine logo"
               className="w-full h-full object-cover"
               onError={(e) => {
                 (e.target as HTMLImageElement).style.display = "none";
@@ -112,7 +112,7 @@ function KMNavbar(): JSX.Element {
           </motion.div>
 
           <span className="font-serif text-lg text-karibaNavy dark:text-karibaSand">
-            KaribaMagazine
+            TheKaribaMagazine
           </span>
         </Link>
 
