@@ -1,1 +1,21 @@
 @import "tailwindcss";
+
+/* Smooth color/background transitions for theme switching */
+:root {
+  --transition-fast: 200ms;
+}
+
+/* apply to html/body and elements that change color */
+html, body, #root {
+  transition: background-color var(--transition-fast) ease, color var(--transition-fast) ease;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition-fast: 0ms;
+  }
+  html, body, #root {
+    transition: none !important;
+  }
+}
