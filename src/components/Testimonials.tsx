@@ -174,13 +174,6 @@ const TestimonialCard: React.FC<{ r: Review; index: number }> = React.memo(
     const reduce = useReducedMotion();
 
     // colorful gradient for placeholder avatar - stable derived seed from name
-    const seed = r.author?.charCodeAt(0) ?? 65;
-    const grad =
-      seed % 3 === 0
-        ? "from-indigo-400 to-teal-300"
-        : seed % 3 === 1
-        ? "from-rose-400 to-amber-300"
-        : "from-emerald-300 to-indigo-400";
 
     return (
       <motion.figure
