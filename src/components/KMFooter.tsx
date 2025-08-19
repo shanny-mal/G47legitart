@@ -146,7 +146,7 @@ export default function KMFooter(): JSX.Element {
             className="inline-flex items-center gap-3 focus:outline-none"
           >
             {/* simple logo mark */}
-            <div className="w-12 h-12 rounded-md bg-gradient-to-br from-karibaTeal to-karibaCoral flex items-center justify-center text-white font-serif text-lg shadow">
+            <div className="w-12 h-12 rounded-md bg-gradient-to-br from-karibaTeal to-karibaCoral flex items-center justify-center text-black font-serif text-lg shadow">
               KM
             </div>
             <div>
@@ -215,7 +215,7 @@ export default function KMFooter(): JSX.Element {
                 type="submit"
                 disabled={state === "loading"}
                 whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-karibaTeal to-karibaCoral text-white rounded-r-md font-semibold shadow-sm hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-karibaCoral/50 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-karibaTeal to-karibaCoral text-black rounded-r-md font-semibold shadow-sm hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-karibaCoral/50 disabled:opacity-60 disabled:cursor-not-allowed transition"
                 aria-disabled={state === "loading"}
               >
                 {state === "loading" ? (

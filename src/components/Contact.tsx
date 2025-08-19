@@ -276,7 +276,7 @@ export default function Contact(): JSX.Element {
                   type="submit"
                   whileTap={prefersReduced ? undefined : { scale: 0.98 }}
                   disabled={status === "sending"}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-karibaTeal to-karibaCoral text-white rounded-md font-semibold shadow hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-karibaTeal/30 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-karibaTeal to-karibaCoral text-black rounded-md font-semibold shadow hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-karibaTeal/30 disabled:opacity-60 disabled:cursor-not-allowed transition"
                   aria-disabled={status === "sending"}
                 >
                   {status === "sending" ? (
