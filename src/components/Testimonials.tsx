@@ -45,14 +45,9 @@ const DEFAULT_REVIEWS: Review[] = [
    Helpers
    --------------------------- */
 
-/**
- * Normalize a flexible API response into Review[]
- * Handles many shapes: array, { reviews }, { result: { reviews } }, google-like shapes, etc.
- */
 function normalizeReviews(data: any): Review[] {
   if (!data) return [];
 
-  // prefer direct array shapes first
   const arr =
     Array.isArray(data) && data.length
       ? data
@@ -112,67 +107,138 @@ function normalizeReviews(data: any): Review[] {
    Small presentational pieces
    --------------------------- */
 
+/** compact SVG star (filled) */
+const StarSVG: React.FC<{ filled?: boolean; size?: number }> = ({
+  filled = true,
+  size = 14,
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill={filled ? "currentColor" : "none"}
+    stroke="currentColor"
+    strokeWidth={filled ? 0 : 1.4}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+    className={filled ? "text-amber-400" : "text-amber-300/60"}
+  >
+    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+  </svg>
+);
+
+/** star rating row */
 const StarRating: React.FC<{ rating: number }> = ({ rating }) => {
   const stars = Math.round(Math.max(0, Math.min(5, rating)));
   return (
-    <div className="flex items-center gap-2" aria-hidden>
-      <div className="text-yellow-400" style={{ letterSpacing: "-0.04em" }}>
-        {"★".repeat(stars)}
-        {"☆".repeat(5 - stars)}
-      </div>
+    <div className="flex items-center gap-1" aria-hidden>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <StarSVG key={i} filled={i < stars} size={14} />
+      ))}
       <span className="sr-only">{stars} out of 5 stars</span>
     </div>
   );
 };
 
 const SkeletonCard: React.FC = () => (
-  <div className="p-4 rounded-lg bg-white/6 dark:bg-white/4 animate-pulse">
+  <div className="p-4 rounded-xl bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900/60 animate-pulse shadow-sm border border-slate-100 dark:border-slate-800">
     <div className="flex items-start gap-3">
-      <div className="w-12 h-12 rounded-full bg-white/12" />
+      <div className="w-12 h-12 rounded-full bg-slate-200 dark:bg-slate-700" />
       <div className="flex-1">
-        <div className="h-4 w-36 bg-white/12 rounded mb-2" />
-        <div className="h-3 w-20 bg-white/12 rounded mb-3" />
-        <div className="h-12 bg-white/12 rounded" />
+        <div className="h-4 w-36 bg-slate-200 dark:bg-slate-700 rounded mb-2" />
+        <div className="h-3 w-20 bg-slate-200 dark:bg-slate-700 rounded mb-3" />
+        <div className="h-12 bg-slate-200 dark:bg-slate-700 rounded" />
       </div>
     </div>
   </div>
 );
 
+/** decorative quote SVG (subtle) */
+const QuoteMark: React.FC<{ className?: string }> = ({ className = "" }) => (
+  <svg
+    viewBox="0 0 24 24"
+    aria-hidden
+    className={`w-14 h-14 opacity-6 text-slate-200 dark:text-slate-800 ${className}`}
+  >
+    <path
+      d="M8.5 6.5C6.5 6.5 5 8 5 10v4a2 2 0 0 0 2 2h1v-4.5A2.5 2.5 0 0 1 10.5 9H12V6.5H8.5zM18.5 6.5C16.5 6.5 15 8 15 10v4a2 2 0 0 0 2 2h1v-4.5A2.5 2.5 0 0 1 20.5 9H22V6.5h-3.5z"
+      fill="currentColor"
+      opacity="0.06"
+    />
+  </svg>
+);
+
 const TestimonialCard: React.FC<{ r: Review; index: number }> = React.memo(
   ({ r, index }) => {
     const reduce = useReducedMotion();
+
+    // colorful gradient for placeholder avatar - stable derived seed from name
+    const seed = r.author?.charCodeAt(0) ?? 65;
+    const grad =
+      seed % 3 === 0
+        ? "from-indigo-400 to-teal-300"
+        : seed % 3 === 1
+        ? "from-rose-400 to-amber-300"
+        : "from-emerald-300 to-indigo-400";
+
     return (
       <motion.figure
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: reduce ? 0 : 0.36, delay: index * 0.06 }}
-        className="p-5 bg-white rounded-xl dark:bg-[#052231] shadow-sm border border-white/6"
+        whileHover={
+          reduce
+            ? undefined
+            : { y: -6, boxShadow: "0 18px 40px rgba(2,6,23,0.12)" }
+        }
+        className="relative p-5 rounded-xl bg-white dark:bg-slate-900 shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden"
       >
-        <figcaption className="flex items-start gap-4">
+        {/* light left accent */}
+        <div
+          aria-hidden
+          className="absolute left-0 top-0 bottom-0 w-1"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(99,102,241,0.95), rgba(6,182,212,0.95))",
+          }}
+        />
+
+        <div className="absolute right-4 top-3 opacity-10 pointer-events-none">
+          <QuoteMark />
+        </div>
+
+        <figcaption className="flex items-start gap-4 relative z-10">
           <div className="flex-none">
             {r.avatar ? (
               <img
                 src={r.avatar}
                 alt={`${r.author} avatar`}
-                className="w-12 h-12 rounded-full object-cover"
+                className="w-12 h-12 rounded-full object-cover ring-1 ring-slate-100 dark:ring-slate-800"
                 loading="lazy"
                 decoding="async"
               />
             ) : (
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-karibaTeal to-karibaCoral flex items-center justify-center text-white font-semibold">
-                {r.author.charAt(0).toUpperCase()}
+              <div
+                className={`w-12 h-12 rounded-full flex items-center justify-center font-semibold text-white`}
+                style={{
+                  background: `linear-gradient(135deg, rgba(99,102,241,0.95), rgba(6,182,212,0.95))`,
+                }}
+                aria-hidden
+              >
+                {r.author?.charAt(0)?.toUpperCase() ?? "A"}
               </div>
             )}
           </div>
 
           <div className="flex-1">
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-sm font-semibold text-karibaNavy dark:text-karibaSand">
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                   {r.author}
                 </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                  {/* optional: add a date if available in data */}
+                <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {/* optional date if available */}
                 </div>
               </div>
 
@@ -181,7 +247,7 @@ const TestimonialCard: React.FC<{ r: Review; index: number }> = React.memo(
               </div>
             </div>
 
-            <blockquote className="mt-3 text-sm text-gray-700 dark:text-gray-200 leading-relaxed">
+            <blockquote className="mt-3 text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
               {r.text}
             </blockquote>
           </div>
@@ -197,7 +263,7 @@ TestimonialCard.displayName = "TestimonialCard";
    --------------------------- */
 
 const CACHE_KEY = "kariba_testimonials_v1";
-const MAX_SHOW = 3; // show initially then "Show more"
+const MAX_SHOW = 3;
 
 const Testimonials: React.FC = () => {
   const [reviews, setReviews] = useState<Review[] | null>(null);
@@ -245,10 +311,8 @@ const Testimonials: React.FC = () => {
         }
       } catch (err: any) {
         if (axios.isCancel?.(err) || err?.name === "CanceledError") {
-          // aborted, do nothing
           return;
         }
-        // fallback
         if (mounted.current) {
           setError("Could not load testimonials — showing latest available.");
           setReviews(DEFAULT_REVIEWS);
@@ -269,9 +333,11 @@ const Testimonials: React.FC = () => {
     return showAll ? reviews : reviews.slice(0, MAX_SHOW);
   }, [reviews, showAll]);
 
+  const reduce = useReducedMotion();
+
   return (
     <section
-      className="py-12 bg-gray-50 dark:bg-[#041b22]"
+      className="py-12 bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:via-indigo-900 dark:to-rose-900"
       aria-labelledby="testimonials-heading"
     >
       <div className="max-w-6xl mx-auto px-4">
@@ -279,33 +345,29 @@ const Testimonials: React.FC = () => {
           <div>
             <h2
               id="testimonials-heading"
-              className="text-2xl font-serif font-semibold text-karibaNavy dark:text-karibaSand"
+              className="text-2xl font-serif font-semibold text-slate-900 dark:text-slate-100"
             >
               Readers say
             </h2>
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 max-w-xl">
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 max-w-xl">
               Real reactions from our readers — stories that moved them, visuals
               that stayed with them.
             </p>
           </div>
 
-          <div className="ml-auto">
-            {/* lightweight refresh control */}
+          <div className="ml-auto flex items-center gap-3">
             <button
               type="button"
               onClick={() => {
-                // clear cache and re-fetch
                 try {
                   sessionStorage.removeItem(CACHE_KEY);
                 } catch {}
+                // re-run effect by resetting state
                 setLoading(true);
                 setReviews(null);
                 setError(null);
-                // trigger effect by toggling a key (simple approach)
-                // We re-run fetch by calling the effect indirectly via setReviews(null)
-                // The effect uses the absence of cache to fetch again.
               }}
-              className="inline-flex items-center gap-2 px-3 py-2 text-sm rounded-md border border-white/8 bg-white/6 dark:bg-[#072231] hover:bg-white/8 transition"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-gradient-to-r from-indigo-500 to-emerald-400 text-white text-sm shadow hover:brightness-95 transition"
             >
               Refresh
             </button>
@@ -321,19 +383,25 @@ const Testimonials: React.FC = () => {
           )}
 
           {!loading && error && (
-            <div className="p-3 rounded-md bg-yellow-50 dark:bg-yellow-900/30 text-sm text-yellow-800 dark:text-yellow-200">
+            <div className="p-3 rounded-md bg-amber-50 dark:bg-amber-900/20 text-sm text-amber-800 dark:text-amber-200">
               {error}
             </div>
           )}
 
           {!loading && visible.length === 0 && (
-            <div className="p-6 rounded-lg bg-white/6 dark:bg-white/4 text-gray-700 dark:text-gray-200">
+            <div className="p-6 rounded-lg bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200">
               No testimonials available.
             </div>
           )}
 
           {!loading && visible.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div
+              className={`grid gap-4 ${
+                reduce
+                  ? "grid-cols-1 md:grid-cols-2"
+                  : "grid-cols-1 md:grid-cols-2"
+              }`}
+            >
               {visible.map((r, i) => (
                 <TestimonialCard key={r.id} r={r} index={i} />
               ))}
@@ -341,10 +409,10 @@ const Testimonials: React.FC = () => {
           )}
 
           {!loading && reviews && reviews.length > MAX_SHOW && (
-            <div className="mt-4 flex justify-center">
+            <div className="mt-6 flex justify-center">
               <button
                 onClick={() => setShowAll((s) => !s)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-karibaTeal text-white font-medium shadow hover:brightness-95 transition"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-indigo-500 to-emerald-400 text-white font-medium shadow hover:brightness-95 transition"
                 aria-expanded={showAll}
               >
                 {showAll ? "Show less" : `Show all (${reviews.length})`}

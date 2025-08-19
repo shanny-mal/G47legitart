@@ -6,6 +6,7 @@ import { logoFloat } from "./variants";
 const Logo: React.FC<{ title?: string }> = React.memo(
   ({ title = "KaribaMagazine" }) => {
     const reduceMotion = Boolean(useReducedMotion());
+
     return (
       <a
         href="/"
@@ -14,7 +15,7 @@ const Logo: React.FC<{ title?: string }> = React.memo(
       >
         <motion.div
           {...(reduceMotion ? {} : (logoFloat(false) as any))}
-          className="w-12 h-12 rounded-lg overflow-hidden flex items-center justify-center bg-white/6 dark:bg-white/4 shadow-sm transition-transform duration-300 hover:scale-105"
+          className="w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center bg-white/80 dark:bg-black/60 shadow-sm hover:scale-105 transition-transform duration-300"
           title={title}
           aria-hidden="true"
         >
@@ -39,5 +40,6 @@ const Logo: React.FC<{ title?: string }> = React.memo(
     );
   }
 );
+
 Logo.displayName = "Logo";
 export default Logo;

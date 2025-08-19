@@ -1,4 +1,3 @@
-// src/components/KMNavbar.tsx
 import React, { useCallback, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import Logo from "./Logo";
@@ -14,7 +13,10 @@ const KMNavbar: React.FC = () => {
   const close = useCallback(() => setOpen(false), []);
 
   return (
-    <header className="w-full sticky top-0 z-50 bg-white/60 dark:bg-[#04202a]/60 backdrop-blur-md border-b border-white/10 dark:border-[#05202a]">
+    <header
+      className="w-full sticky top-0 z-50 backdrop-blur-md bg-gradient-to-b from-white/60 to-white/40 dark:from-[#02151a]/70 dark:to-[#02151a]/60 border-b border-white/10 dark:border-black/20"
+      aria-label="Primary"
+    >
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Logo />
@@ -26,6 +28,7 @@ const KMNavbar: React.FC = () => {
           <ThemeToggle />
           <SubscribeButton />
 
+          {/* mobile menu toggle */}
           <button
             onClick={toggle}
             aria-expanded={open}
@@ -41,6 +44,7 @@ const KMNavbar: React.FC = () => {
                 open ? { rotate: 45, scale: 1.02 } : { rotate: 0, scale: 1 }
               }
               transition={{ duration: reduceMotion ? 0 : 0.18 }}
+              aria-hidden
             >
               <path
                 d={open ? "M6 18L18 6M6 6l12 12" : "M4 8h16M4 16h16"}

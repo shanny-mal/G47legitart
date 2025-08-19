@@ -1,79 +1,125 @@
-import React, { useMemo, type JSX } from "react";
+// src/components/Services.tsx
+import React, { useMemo } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 
 type Service = {
   title: string;
   desc: string;
   /** small decorative svg (keeps vector crisp) */
-  icon: JSX.Element;
+  icon: React.ReactNode;
   href?: string;
 };
 
 /* ---------- Motion variants (defined once) ---------- */
 const containerVariants = {
+  hidden: { opacity: 0 },
   visible: {
+    opacity: 1,
     transition: {
       staggerChildren: 0.06,
       delayChildren: 0.06,
     },
   },
-  hidden: {},
 };
 
 const cardVariants = {
   hidden: { opacity: 0, y: 10, scale: 0.995 },
-  visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.45 } },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { type: "spring", stiffness: 320, damping: 28, mass: 0.9 },
+  },
 };
+
+const hoverSpring = { type: "spring", stiffness: 380, damping: 30 };
 
 /* ---------- Small presentational card ---------- */
 const ServiceCard: React.FC<{ s: Service }> = React.memo(({ s }) => {
   const reduce = useReducedMotion();
 
+  // Root element changes to anchor when href exists (makes whole card clickable)
+  const Root: any = s.href ? motion.a : motion.article;
+  const rootProps = s.href ? { href: s.href } : {};
+
   return (
-    <motion.article
+    <Root
+      {...rootProps}
       role="article"
       aria-label={s.title}
       initial="hidden"
       whileInView="visible"
-      viewport={{ once: true, amount: 0.2 }}
+      viewport={{ once: true, amount: 0.18 }}
       variants={cardVariants}
-      whileHover={reduce ? {} : { translateY: -6, scale: 1.01 }}
-      whileFocus={reduce ? {} : { translateY: -4, scale: 1.005 }}
-      className="group relative overflow-hidden rounded-2xl p-6 bg-white/90 dark:bg-[#052231]/90 border border-white/6 dark:border-white/6 shadow-sm transition-shadow focus-within:shadow-lg focus-within:outline-none focus-within:ring-2 focus-within:ring-karibaTeal/30"
+      whileHover={reduce ? {} : { y: -8, scale: 1.02 }}
+      whileTap={reduce ? {} : { scale: 0.995 }}
+      transition={hoverSpring}
+      className="group relative overflow-hidden rounded-2xl p-6 bg-white dark:bg-slate-900/90 border border-gray-100 dark:border-slate-800 shadow-sm hover:shadow-2xl transition-shadow duration-300 focus-within:shadow-2xl focus-within:outline-none focus-within:ring-2 focus-within:ring-indigo-400/30"
       tabIndex={0}
     >
-      {/* Decorative accent */}
+      {/* Decorative accent: large blurred gradient circle */}
       <div
-        className="absolute -top-6 -right-10 w-40 h-40 rounded-full bg-gradient-to-br from-karibaTeal/20 to-karibaCoral/10 blur-3xl pointer-events-none opacity-60 group-hover:opacity-90 transition-opacity"
         aria-hidden
+        className="pointer-events-none absolute -right-10 -top-8 w-44 h-44 rounded-full blur-[40px] opacity-60 transition-opacity duration-500 group-hover:opacity-95"
+        style={{
+          background:
+            "radial-gradient(circle at 30% 30%, rgba(99,102,241,0.18), rgba(16,185,129,0.06) 40%, transparent 60%)",
+        }}
       />
 
-      <div className="flex items-start gap-4">
-        <div className="flex-none w-12 h-12 rounded-xl bg-white/6 dark:bg-white/5 flex items-center justify-center text-karibaNavy dark:text-karibaSand text-xl shadow-inner">
-          {s.icon}
+      <div className="flex items-start gap-4 relative z-10">
+        <div
+          className="flex-none w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-inner"
+          style={{
+            background: "linear-gradient(135deg,#6366f1 0%,#06b6d4 100%)",
+          }}
+        >
+          {/* Icon sized and using currentColor so its stroke/fill inherits white */}
+          <div className="w-6 h-6 text-white">{s.icon}</div>
         </div>
 
         <div className="flex-1">
-          <h3 className="text-base font-semibold text-karibaNavy dark:text-karibaSand">
+          <h3 className="text-base font-semibold text-slate-900 dark:text-slate-50">
             {s.title}
           </h3>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300 leading-snug">
+
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             {s.desc}
           </p>
 
           <div className="mt-4">
             <a
-              href={s.href ?? "/contact"}
-              className="inline-flex items-center gap-2 text-sm font-medium text-karibaTeal dark:text-karibaTeal hover:underline focus:outline-none"
+              href={s.href ?? "#"}
+              className="inline-flex items-center gap-2 text-sm font-medium text-indigo-600 dark:text-indigo-300 hover:underline focus:outline-none"
               aria-label={`Learn more about ${s.title}`}
             >
               Learn more
-              <span aria-hidden>→</span>
+              <svg
+                className="w-4 h-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                aria-hidden
+              >
+                <path
+                  d="M5 12h14"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M12 5l7 7-7 7"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </a>
           </div>
         </div>
       </div>
-    </motion.article>
+    </Root>
   );
 });
 ServiceCard.displayName = "ServiceCard";
@@ -103,6 +149,7 @@ const Services: React.FC = () => {
             />
           </svg>
         ),
+        href: "/services/editorial",
       },
       {
         title: "Layout & Typesetting",
@@ -127,6 +174,7 @@ const Services: React.FC = () => {
             />
           </svg>
         ),
+        href: "/services/layout",
       },
       {
         title: "Photo Editing",
@@ -149,6 +197,7 @@ const Services: React.FC = () => {
             />
           </svg>
         ),
+        href: "/services/photo-editing",
       },
       {
         title: "Advertising & Sponsorship",
@@ -173,7 +222,9 @@ const Services: React.FC = () => {
             />
           </svg>
         ),
+        href: "/services/ads",
       },
+      // You can add more services here if desired (keeps grid balanced)
     ],
     []
   );
@@ -182,18 +233,18 @@ const Services: React.FC = () => {
 
   return (
     <section
-      className="py-16 bg-gray-50 dark:bg-[#072231]"
+      className="py-16 bg-gradient-to-b from-white to-slate-50 dark:from-slate-900 dark:to-[#041827]"
       aria-labelledby="services-heading"
     >
       <div className="max-w-7xl mx-auto px-4">
         <div className="mb-8 text-center">
           <h2
             id="services-heading"
-            className="text-2xl sm:text-3xl md:text-4xl font-serif font-semibold text-karibaNavy dark:text-karibaSand"
+            className="text-2xl sm:text-3xl md:text-4xl font-serif font-semibold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-teal-400"
           >
             What we offer
           </h2>
-          <p className="mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+          <p className="mt-2 text-sm sm:text-base text-slate-600 dark:text-slate-300 max-w-2xl mx-auto">
             Editorial production services tailored for magazines, brands and
             storytellers — from copy to print-ready layout.
           </p>
@@ -212,10 +263,10 @@ const Services: React.FC = () => {
 
         <div className="mt-10 text-center">
           <motion.a
-            whileHover={reduce ? {} : { y: -3 }}
+            whileHover={reduce ? {} : { y: -3, scale: 1.02 }}
             whileTap={reduce ? {} : { scale: 0.98 }}
             href="/contact"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-karibaTeal to-karibaCoral text-black font-semibold shadow-lg focus:outline-none focus:ring-2 focus:ring-karibaTeal/30"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-indigo-600 to-teal-400 text-white font-semibold shadow-xl focus:outline-none focus:ring-2 focus:ring-indigo-400/30 transition-transform"
           >
             Get a quote
             <svg
@@ -225,7 +276,14 @@ const Services: React.FC = () => {
               aria-hidden
             >
               <path
-                d="M5 12h14M12 5l7 7-7 7"
+                d="M5 12h14"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M12 5l7 7-7 7"
                 stroke="currentColor"
                 strokeWidth="1.6"
                 strokeLinecap="round"

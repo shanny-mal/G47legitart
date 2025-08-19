@@ -1,8 +1,6 @@
 /// <reference types="vite/client" />
-
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import process from "process";
 
 export type SlideData = {
   id: number;
@@ -23,9 +21,9 @@ function buildSrcSet(map: Record<string, string>) {
 
 /**
  * Slide component
- * - deep blurred background but still visible
- * - robust fallback when images are missing (never show white screen)
- * - smooth blur -> crisp transition when foreground image loads
+ * - blurred DIV background (uses CSS background-image): avoids broken-image white flash
+ * - foreground img loads and fades in when ready
+ * - supports webp/jpg variants via import.meta.glob (eager/lazy)
  */
 export default function Slide({ slide }: { slide?: SlideData }) {
   if (!slide) {
@@ -43,7 +41,7 @@ export default function Slide({ slide }: { slide?: SlideData }) {
 
   const base = slide.baseName;
 
-  // Eager maps (immediate URLs) - Vite resolves this at build time
+  // eager/lazy maps for webp/jpg/jpeg
   const eagerWebp = useMemo(
     () =>
       (import.meta.glob("../../assets/images/background/*.webp", {
@@ -52,7 +50,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
       }) as Record<string, string>) || {},
     []
   );
-
   const eagerJpg = useMemo(
     () =>
       (import.meta.glob("../../assets/images/background/*.jpg", {
@@ -61,7 +58,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
       }) as Record<string, string>) || {},
     []
   );
-
   const eagerJpeg = useMemo(
     () =>
       (import.meta.glob("../../assets/images/background/*.jpeg", {
@@ -71,7 +67,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     []
   );
 
-  // Lazy import maps (functions) - used only if eager didn't find matches
   const lazyWebp = useMemo(
     () =>
       (import.meta.glob("../../assets/images/background/*.webp") as Record<
@@ -80,7 +75,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
       >) || {},
     []
   );
-
   const lazyJpg = useMemo(
     () =>
       (import.meta.glob("../../assets/images/background/*.jpg") as Record<
@@ -89,7 +83,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
       >) || {},
     []
   );
-
   const lazyJpeg = useMemo(
     () =>
       (import.meta.glob("../../assets/images/background/*.jpeg") as Record<
@@ -99,23 +92,20 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     []
   );
 
-  // state for variant maps and fallback placeholder
   const [webpMap, setWebpMap] = useState<Record<string, string>>({});
   const [jpgMap, setJpgMap] = useState<Record<string, string>>({});
   const [placeholder, setPlaceholder] = useState<string | null>(
     () => slide.image ?? null
   );
 
-  // extra states for robust rendering
-  const [bgLoaded, setBgLoaded] = useState(false); // background (blurred) image loaded
-  const [fgLoaded, setFgLoaded] = useState(false); // foreground crisp image loaded
-  const [imgError, setImgError] = useState(false); // any image failed to load
+  // states for render flow
+  const [bgLoaded, setBgLoaded] = useState(false);
+  const [fgLoaded, setFgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const mounted = useRef(true);
 
   useEffect(() => {
     mounted.current = true;
-
-    // reset for new slide
     setWebpMap({});
     setJpgMap({});
     setPlaceholder(slide.image ?? null);
@@ -123,19 +113,14 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     setFgLoaded(false);
     setImgError(false);
 
-    // helper to process an object of filename->url (eager results) for a given ext
     const processEagerFiles = (files: Record<string, string>, ext: string) => {
       const wMap: Record<string, string> = {};
       Object.keys(files).forEach((k) => {
         const filename = k.split("/").pop() || k;
         const regex = new RegExp(`^${base}-(\\d+)\\.${ext}$`, "i");
         const m = filename.match(regex);
-        if (m) {
-          wMap[m[1]] = files[k];
-        }
+        if (m) wMap[m[1]] = files[k];
       });
-
-      // single base.ext fallback
       const single = Object.keys(files).find(
         (k) =>
           (k.split("/").pop() || "").toLowerCase() ===
@@ -144,16 +129,12 @@ export default function Slide({ slide }: { slide?: SlideData }) {
       return { wMap, singleUrl: single ? files[single] : undefined };
     };
 
-    // Try processing eager maps for webp and jpg/jpeg
     try {
       const wRes = processEagerFiles(eagerWebp, "webp");
       const jRes = processEagerFiles(eagerJpg, "jpg");
       const jxRes = processEagerFiles(eagerJpeg, "jpeg");
-
-      // merge jpg + jpeg maps
       const combinedJpgMap = { ...jRes.wMap, ...jxRes.wMap };
 
-      // If any webp variants exist, use them
       if (Object.keys(wRes.wMap).length > 0) {
         setWebpMap(wRes.wMap);
         if (!slide.image) {
@@ -164,7 +145,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
           if (largest) setPlaceholder(largest[1]);
         }
       } else if (Object.keys(combinedJpgMap).length > 0) {
-        // if no webp variants, but jpg variants exist
         setJpgMap(combinedJpgMap);
         if (!slide.image) {
           const largest = Object.entries(combinedJpgMap)
@@ -174,38 +154,25 @@ export default function Slide({ slide }: { slide?: SlideData }) {
           if (largest) setPlaceholder(largest[1]);
         }
       } else {
-        // check single file fallbacks
         const singleWebp = wRes.singleUrl;
         const singleJpg = jRes.singleUrl ?? jxRes.singleUrl;
-        if (!slide.image && singleWebp) {
-          setPlaceholder(singleWebp);
-        } else if (!slide.image && singleJpg) {
-          setPlaceholder(singleJpg);
-        }
+        if (!slide.image && singleWebp) setPlaceholder(singleWebp);
+        else if (!slide.image && singleJpg) setPlaceholder(singleJpg);
       }
 
       if (process.env.NODE_ENV === "development") {
         // eslint-disable-next-line no-console
         console.debug(
           `[Slide] eager webp keys for base=${base}`,
-          Object.keys(eagerWebp).filter((f) =>
-            (f.split("/").pop() || "")
-              .toLowerCase()
-              .startsWith(base.toLowerCase())
-          )
+          Object.keys(eagerWebp)
         );
         // eslint-disable-next-line no-console
-        console.debug(
-          `[Slide] eager jpg/jpeg keys for base=${base}`,
-          [...Object.keys(eagerJpg), ...Object.keys(eagerJpeg)].filter((f) =>
-            (f.split("/").pop() || "")
-              .toLowerCase()
-              .startsWith(base.toLowerCase())
-          )
-        );
+        console.debug(`[Slide] eager jpg/jpeg keys for base=${base}`, [
+          ...Object.keys(eagerJpg),
+          ...Object.keys(eagerJpeg),
+        ]);
       }
 
-      // If we found any variants via eager processing, we can skip lazy imports
       if (
         Object.keys(wRes.wMap).length > 0 ||
         Object.keys(combinedJpgMap).length > 0 ||
@@ -218,7 +185,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
         };
       }
     } catch (err) {
-      // continue to lazy import if eager lookup fails unexpectedly
       // eslint-disable-next-line no-console
       console.warn(
         "[Slide] eager lookup failed; falling back to lazy imports",
@@ -226,7 +192,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
       );
     }
 
-    // helper to safely call an importer (avoids TS narrowing to never)
     const callImporter = async (
       imp?: (() => Promise<{ default: string }>) | null
     ) => {
@@ -234,10 +199,8 @@ export default function Slide({ slide }: { slide?: SlideData }) {
       return imp();
     };
 
-    // Eager didn't find matches — use lazy imports (async)
     (async () => {
       try {
-        // collect variant importers
         const webpEntries: Array<{
           width: string;
           importer: () => Promise<{ default: string }>;
@@ -249,7 +212,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
         let singleWebpImp: (() => Promise<{ default: string }>) | null = null;
         let singleJpgImp: (() => Promise<{ default: string }>) | null = null;
 
-        // helper to inspect keys across lazy maps
         const inspectLazy = (
           map: Record<string, () => Promise<{ default: string }>>,
           ext: string
@@ -276,7 +238,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
         inspectLazy(lazyJpg, "jpg");
         inspectLazy(lazyJpeg, "jpeg");
 
-        // prefer webp variants if present
         if (webpEntries.length > 0) {
           const res = await Promise.all(
             webpEntries.map(async (e) => ({
@@ -288,7 +249,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
           const map: Record<string, string> = {};
           res.forEach((r) => (map[r.width] = r.url));
           setWebpMap(map);
-
           if (!slide.image) {
             const largest = res
               .map((r) => [Number(r.width), r.url] as const)
@@ -297,7 +257,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
             if (largest) setPlaceholder(largest[1]);
           }
         } else if (jpgEntries.length > 0) {
-          // use jpg/jpeg variants if webp not present
           const res = await Promise.all(
             jpgEntries.map(async (e) => ({
               width: e.width,
@@ -308,7 +267,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
           const map: Record<string, string> = {};
           res.forEach((r) => (map[r.width] = r.url));
           setJpgMap(map);
-
           if (!slide.image) {
             const largest = res
               .map((r) => [Number(r.width), r.url] as const)
@@ -317,7 +275,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
             if (largest) setPlaceholder(largest[1]);
           }
         } else {
-          // no multi-variant entries — try single-file importers
           if (singleWebpImp) {
             const mod = await callImporter(singleWebpImp);
             if (!mounted.current) return;
@@ -342,7 +299,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     return () => {
       mounted.current = false;
     };
-    // eager/lazy maps are stable because useMemo deps are [], so no need to include them here
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [base, slide.image]);
 
@@ -358,8 +314,7 @@ export default function Slide({ slide }: { slide?: SlideData }) {
 
   const sizes = "(max-width: 768px) 100vw, (max-width:1200px) 100vw, 1200px";
 
-  // If there's a candidate fallbackSrc, test-load it so we know if it's valid.
-  // This avoids rendering a broken image (white) on screen.
+  // pre-test fallbackSrc so we can manage bg/fg loaded states
   useEffect(() => {
     if (!fallbackSrc) {
       setImgError(true);
@@ -374,12 +329,10 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     pre.onload = () => {
       if (cancelled) return;
       setImgError(false);
-      setBgLoaded(true); // background can use the image
-      // we don't set fgLoaded here; fgLoaded is set when the foreground <img> actually loads (onLoad)
+      setBgLoaded(true);
     };
     pre.onerror = () => {
       if (cancelled) return;
-      // If the fallbackSrc fails to load, mark error — we'll show gradient instead
       console.warn(`[Slide] image failed to load: ${fallbackSrc}`);
       setImgError(true);
       setBgLoaded(false);
@@ -390,16 +343,15 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     };
   }, [fallbackSrc]);
 
-  // if still no image available, show readable gradient + text (keeps UI visible)
+  // if still no image available, show readable gradient + text
   if (!fallbackSrc || imgError) {
     return (
       <div className="absolute inset-0 w-full h-full">
-        {/* deep-ish, subtle background so text is readable */}
         <div
           className="absolute inset-0 z-0"
           style={{
             background:
-              "linear-gradient(180deg, rgba(6,7,12,0.7) 0%, rgba(6,7,12,0.5) 40%, rgba(6,7,12,0.6) 100%)",
+              "linear-gradient(180deg, rgba(6,7,12,0.75) 0%, rgba(6,7,12,0.55) 40%, rgba(6,7,12,0.62) 100%)",
           }}
         />
         <div className="absolute inset-0 z-10 flex items-center">
@@ -420,7 +372,7 @@ export default function Slide({ slide }: { slide?: SlideData }) {
 
   return (
     <div className="absolute inset-0 w-full h-full">
-      {/* blurred background: heavy blur but still visible */}
+      {/* blurred background uses CSS background-image to avoid broken-image flash */}
       <motion.div
         className="absolute inset-0 z-0 will-change-transform"
         initial={{ scale: 1.06 }}
@@ -429,45 +381,20 @@ export default function Slide({ slide }: { slide?: SlideData }) {
         transition={{ duration: 12, ease: "easeInOut" }}
         aria-hidden
       >
-        <picture>
-          {hasWebp && (
-            <source
-              type="image/webp"
-              srcSet={buildSrcSet(webpMap)}
-              sizes={sizes}
-            />
-          )}
-          {hasJpg && (
-            <source
-              type="image/jpeg"
-              srcSet={buildSrcSet(jpgMap)}
-              sizes={sizes}
-            />
-          )}
-
-          {/* Deep blur: use inline style for stronger blur than Tailwind's default */}
-          <img
-            src={fallbackSrc}
-            alt=""
-            className="w-full h-full object-cover"
-            style={{
-              filter: "blur(24px) saturate(0.9) contrast(0.95)",
-              transform: "scale(1.05)",
-              transition:
-                "opacity 500ms ease, filter 600ms ease, transform 600ms ease",
-              opacity: bgLoaded ? 1 : 0,
-            }}
-            loading="lazy"
-            decoding="async"
-            aria-hidden
-            onError={() => {
-              setImgError(true);
-            }}
-          />
-        </picture>
+        <div
+          className="w-full h-full bg-center bg-cover"
+          style={{
+            backgroundImage: `linear-gradient(rgba(6,7,12,0.45), rgba(6,7,12,0.45)), url("${fallbackSrc}")`,
+            filter: "blur(22px) saturate(0.92) contrast(0.98)",
+            transform: "scale(1.04)",
+            transition:
+              "opacity 420ms ease, filter 600ms ease, transform 600ms ease",
+            opacity: bgLoaded ? 1 : 0.85,
+          }}
+        />
       </motion.div>
 
-      {/* crisp foreground: fades in when loaded */}
+      {/* crisp foreground */}
       <motion.div
         className="absolute inset-0 z-20 will-change-transform"
         initial={{ opacity: 0, scale: 1.02 }}
@@ -493,7 +420,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
               sizes={sizes}
             />
           )}
-
           <img
             src={fallbackSrc}
             alt={slide.alt ?? slide.title}
@@ -506,19 +432,14 @@ export default function Slide({ slide }: { slide?: SlideData }) {
               objectPosition: "center",
               transition: "opacity 500ms ease, transform 500ms ease",
             }}
-            onLoad={() => {
-              setFgLoaded(true);
-            }}
-            onError={() => {
-              // If foreground fails, mark error so outer fallback renders
-              setImgError(true);
-            }}
+            onLoad={() => setFgLoaded(true)}
+            onError={() => setImgError(true)}
           />
         </picture>
       </motion.div>
 
-      {/* overlay gradient for consistent contrast */}
-      <div className="absolute inset-0 z-30 bg-gradient-to-b from-black/20 via-black/10 to-black/40 pointer-events-none" />
+      {/* overlay for consistent contrast */}
+      <div className="absolute inset-0 z-30 bg-gradient-to-b from-black/18 via-black/8 to-black/34 pointer-events-none" />
     </div>
   );
 }

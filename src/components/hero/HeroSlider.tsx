@@ -91,11 +91,11 @@ export default function HeroSlider(): React.ReactElement {
   const pause = useCallback(() => setPaused(true), []);
   const resume = useCallback(() => setPaused(false), []);
 
-  // use typewriter for title + subtitle
+  // slightly faster typewriter but still pleasant
   const { typedTitle, typedSubtitle, isTyping } = useTypewriter(
     slides[index].title,
     slides[index].subtitle ?? "",
-    { speed: 35, pauseBetween: 260, instant: prefersReducedMotion }
+    { speed: 34, pauseBetween: 240, instant: prefersReducedMotion }
   );
 
   // autoplay (respects visibility, reduced motion and user pause)
@@ -104,7 +104,7 @@ export default function HeroSlider(): React.ReactElement {
     inView && !prefersReducedMotion && !paused ? AUTOPLAY_MS : null
   );
 
-  // preload candidate (safe checks)
+  // preload a sensible candidate for the active slide to reduce flashes
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -191,10 +191,10 @@ export default function HeroSlider(): React.ReactElement {
         {activeSlide && (
           <motion.div
             key={activeSlide.id}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: reduce ? 0 : 0.6 }}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: reduce ? 0 : 0.6, ease: "easeInOut" }}
             className="absolute inset-0 z-10"
             aria-hidden={false}
           >
@@ -203,10 +203,10 @@ export default function HeroSlider(): React.ReactElement {
         )}
       </AnimatePresence>
 
-      {/* overlay */}
+      {/* subtle multiply overlay to deepen contrast and make text pop */}
       <div
         aria-hidden
-        className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-black/10 to-black/20 mix-blend-multiply"
+        className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-black/10 to-black/25 mix-blend-multiply"
       />
 
       {/* content */}
@@ -216,7 +216,7 @@ export default function HeroSlider(): React.ReactElement {
             {activeSlide?.title}: {activeSlide?.subtitle}
           </div>
 
-          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-serif text-white drop-shadow-lg leading-tight">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-serif text-white drop-shadow-[0_10px_18px_rgba(0,0,0,0.55)] leading-tight">
             <span aria-hidden>{typedTitle}</span>
             <span className="sr-only">{activeSlide?.title}</span>
             {!reduce && (
@@ -228,11 +228,11 @@ export default function HeroSlider(): React.ReactElement {
 
           <motion.p
             key={index + "-subtitle"}
-            initial={{ opacity: 0, y: 4 }}
+            initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{
-              duration: reduce ? 0 : 0.35,
-              delay: isTyping ? 0.2 : 0,
+              duration: reduce ? 0 : 0.36,
+              delay: isTyping ? 0.18 : 0,
             }}
             className="mt-3 text-sm sm:text-base md:text-lg text-white/90 min-h-[1.5rem]"
           >
@@ -243,27 +243,23 @@ export default function HeroSlider(): React.ReactElement {
           {/* CTAs */}
           <div className="mt-6 flex gap-3">
             <motion.a
-              whileHover={reduce ? {} : { scale: 1.02 }}
+              whileHover={reduce ? {} : { y: -3 }}
               whileTap={reduce ? {} : { scale: 0.98 }}
               href="/issues"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white/90 text-karibaNavy rounded-md font-semibold shadow transform transition"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white text-karibaNavy rounded-md font-semibold shadow-lg transform transition"
               aria-label="Browse issues"
             >
-              <motion.span layout>Browse issues</motion.span>
+              <span className="text-sm">Browse issues</span>
             </motion.a>
 
             <motion.a
-              whileHover={
-                reduce
-                  ? {}
-                  : { scale: 1.03, boxShadow: "0 10px 30px rgba(0,0,0,0.35)" }
-              }
+              whileHover={reduce ? {} : { scale: 1.03 }}
               whileTap={reduce ? {} : { scale: 0.98 }}
               href="/subscribe"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-karibaTeal to-karibaCoral text-white rounded-md font-semibold shadow"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-karibaTeal to-karibaCoral text-white rounded-md font-semibold shadow-lg"
               aria-label="Subscribe"
             >
-              <motion.span layout>Subscribe</motion.span>
+              <span className="text-sm">Subscribe</span>
             </motion.a>
           </div>
         </div>
@@ -282,21 +278,23 @@ export default function HeroSlider(): React.ReactElement {
       <motion.button
         aria-label="Previous slide"
         onClick={prev}
-        whileHover={reduce ? {} : { scale: 1.1 }}
+        whileHover={reduce ? {} : { scale: 1.06 }}
         whileTap={reduce ? {} : { scale: 0.95 }}
-        className="absolute left-4 top-1/2 -translate-y-1/2 z-30 p-2 rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/30"
+        transition={{ type: "spring", stiffness: 320, damping: 28 }}
+        className="absolute left-4 top-1/2 -translate-y-1/2 z-30 p-2 rounded-full bg-white/8 text-white hover:bg-white/16 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-white/30"
       >
-        ‹
+        <span className="text-xl font-semibold select-none">‹</span>
       </motion.button>
 
       <motion.button
         aria-label="Next slide"
         onClick={next}
-        whileHover={reduce ? {} : { scale: 1.1 }}
+        whileHover={reduce ? {} : { scale: 1.06 }}
         whileTap={reduce ? {} : { scale: 0.95 }}
-        className="absolute right-4 top-1/2 -translate-y-1/2 z-30 p-2 rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/30"
+        transition={{ type: "spring", stiffness: 320, damping: 28 }}
+        className="absolute right-4 top-1/2 -translate-y-1/2 z-30 p-2 rounded-full bg-white/8 text-white hover:bg-white/16 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-white/30"
       >
-        ›
+        <span className="text-xl font-semibold select-none">›</span>
       </motion.button>
     </section>
   );

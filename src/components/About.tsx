@@ -1,6 +1,6 @@
 // src/components/About.tsx
 import React, { useMemo } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import AboutBg from "../assets/images/about/aboutbg.png";
 
 /* ---------------------------
@@ -11,41 +11,62 @@ const SectionTitle: React.FC<{ eyebrow?: string; title: React.ReactNode }> = ({
   eyebrow,
   title,
 }) => (
-  <div className="mb-4">
+  <div className="mb-6">
     {eyebrow && (
-      <p className="text-sm text-karibaTeal font-medium uppercase tracking-wide">
+      <p className="text-sm font-semibold tracking-wider uppercase text-emerald-300">
         {eyebrow}
       </p>
     )}
-    <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-semibold text-karibaNavy dark:text-karibaSand leading-tight">
+    <h2 className="text-3xl sm:text-4xl md:text-5xl font-serif font-extrabold text-slate-900 dark:text-slate-100 leading-tight">
       {title}
     </h2>
   </div>
 );
 
-/**
- * Stat now uses "text-current" so the parent container decides the color.
- * This lets us set `text-black` on the container to produce black text,
- * while other uses can keep white by using a parent with `text-white`.
- */
-const Stat: React.FC<{ value: string; label: string }> = ({ value, label }) => (
-  <div className="flex flex-col items-start">
-    <div className="text-2xl sm:text-3xl font-bold text-current">{value}</div>
-    <div className="text-xs sm:text-sm text-current opacity-80">{label}</div>
-  </div>
-);
+const Stat: React.FC<{ value: string; label: string }> = ({ value, label }) => {
+  return (
+    <div className="flex flex-col items-start">
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45 }}
+        className="text-2xl sm:text-3xl font-extrabold text-current"
+      >
+        {value}
+      </motion.div>
+      <div className="text-xs sm:text-sm text-current/80">{label}</div>
+    </div>
+  );
+};
 
-const Feature: React.FC<{ title: string; body: string }> = ({
+const FeatureCard: React.FC<{ title: string; body: string }> = ({
   title,
   body,
-}) => (
-  <article className="bg-white/6 dark:bg-white/4 rounded-lg p-4 shadow-sm border border-white/6">
-    <h4 className="font-semibold text-karibaNavy dark:text-karibaSand">
-      {title}
-    </h4>
-    <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">{body}</p>
-  </article>
-);
+}) => {
+  const reduce = useReducedMotion();
+  return (
+    <motion.article
+      role="article"
+      aria-label={title}
+      whileHover={
+        reduce ? {} : { y: -6, boxShadow: "0 18px 40px rgba(16,24,40,0.12)" }
+      }
+      transition={{ duration: 0.35 }}
+      className="relative overflow-hidden rounded-2xl p-5 bg-white dark:bg-slate-900/80 border border-white/6 dark:border-white/6 shadow-sm"
+    >
+      <div
+        aria-hidden
+        className="absolute -left-10 -top-10 w-36 h-36 rounded-full bg-gradient-to-br from-emerald-200 to-pink-300 opacity-30 blur-2xl pointer-events-none"
+      />
+      <h4 className="font-semibold text-slate-900 dark:text-slate-100 mb-1">
+        {title}
+      </h4>
+      <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+        {body}
+      </p>
+    </motion.article>
+  );
+};
 
 /* ---------------------------
    Main About component
@@ -71,26 +92,27 @@ const About: React.FC = () => {
   );
 
   return (
-    <section className="py-12 bg-gray-50 dark:bg-[#05232b]">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+    <section className="py-16 bg-gradient-to-b from-white to-slate-50 dark:from-slate-900 dark:to-slate-950">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
           {/* Left: Header + narrative */}
           <div className="lg:col-span-6">
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
+              transition={{ duration: 0.6 }}
             >
               <SectionTitle
                 eyebrow="About"
                 title={
                   <>
-                    The <span className="text-karibaTeal">Kariba</span> Magazine
+                    The <span className="text-emerald-400">Kariba</span>{" "}
+                    Magazine
                   </>
                 }
               />
 
-              <p className="mt-4 text-gray-700 dark:text-gray-200 leading-relaxed text-base sm:text-lg">
+              <p className="mt-4 text-base sm:text-lg text-slate-700 dark:text-slate-300 leading-relaxed">
                 Welcome to <strong>The Kariba Magazine</strong>. We believe in
                 the power of storytelling to connect communities, inspire
                 curiosity, and shine light on the people and places of the
@@ -99,14 +121,14 @@ const About: React.FC = () => {
               </p>
 
               <div className="mt-6 space-y-4">
-                <p className="text-gray-700 dark:text-gray-200">
+                <p className="text-slate-700 dark:text-slate-300">
                   <strong>What we stand for</strong> — independent, courageous
                   reporting that centers local voices; beautiful visual work
                   that respects its subjects; and editorial care that
                   prioritizes nuance over noise.
                 </p>
 
-                <p className="text-gray-700 dark:text-gray-200">
+                <p className="text-slate-700 dark:text-slate-300">
                   <strong>Join us</strong> — read deeply, share widely and
                   consider contributing. Whether you are a photographer, writer
                   or reader, your perspective helps build a richer picture of
@@ -121,53 +143,63 @@ const About: React.FC = () => {
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.06, duration: 0.5 }}
+              transition={{ delay: 0.08, duration: 0.6 }}
               className="grid grid-cols-1 sm:grid-cols-2 gap-4"
             >
               {features.map((f) => (
-                <Feature key={f.title} title={f.title} body={f.body} />
+                <FeatureCard key={f.title} title={f.title} body={f.body} />
               ))}
             </motion.div>
 
             <motion.div
               initial={{ opacity: 0, scale: 0.995 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.12, duration: 0.5 }}
-              className="mt-6 p-5 rounded-xl bg-gradient-to-b from-white/6 to-white/3 ring-1 ring-white/8 shadow-lg"
+              transition={{ delay: 0.14, duration: 0.55 }}
+              className="mt-6 p-6 rounded-2xl bg-gradient-to-r from-emerald-50 to-rose-50 dark:from-slate-800 dark:to-slate-900 ring-1 ring-white/6 shadow-xl"
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-sm text-black/80">Featured</div>
-                  <div className="mt-2 text-lg font-semibold text-black">
+                  <div className="text-sm text-emerald-600 dark:text-emerald-300">
+                    Featured
+                  </div>
+                  <div className="mt-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
                     Season highlights — visual stories
                   </div>
                 </div>
 
                 <div className="text-right">
-                  <div className="text-xs text-black/70">Issues</div>
-                  <div className="text-2xl font-bold text-black">29</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
+                    Issues
+                  </div>
+                  <div className="text-3xl font-extrabold text-slate-900 dark:text-slate-100">
+                    29
+                  </div>
                 </div>
               </div>
 
               <div className="mt-4 flex items-center gap-4">
-                <div className="w-24 h-14 rounded-md bg-gradient-to-br from-karibaTeal to-karibaCoral shadow-inner flex items-center justify-center text-white font-bold">
-                  <img src={AboutBg} alt="" />
+                <div className="w-28 h-16 rounded-md overflow-hidden bg-gradient-to-br from-emerald-400 to-rose-400 flex items-center justify-center shadow-inner">
+                  {/* decorative thumbnail (keeps visual continuity) */}
+                  <img
+                    src={AboutBg}
+                    alt="featured thumbnail"
+                    className="w-full h-full object-cover"
+                  />
                 </div>
 
                 <div className="flex-1">
-                  <div className="text-sm text-black/90">
+                  <div className="text-sm text-slate-700 dark:text-slate-300">
                     Photo essays, in-depth reporting and interviews from the
-                    Kariba basin.
+                    Kariba basin — curated for context and visual impact.
                   </div>
                 </div>
               </div>
 
               <div className="mt-6 grid grid-cols-2 gap-4">
-                {/* These two stat cards now use text-black so value & label render in black */}
-                <div className="p-4 rounded-lg bg-white/6 dark:bg-white/4 text-black">
+                <div className="p-4 rounded-lg bg-white dark:bg-slate-800/70 border border-white/6 shadow-sm text-slate-900 dark:text-slate-100">
                   <Stat value="120+" label="Published stories" />
                 </div>
-                <div className="p-4 rounded-lg bg-white/6 dark:bg-white/4 text-black">
+                <div className="p-4 rounded-lg bg-white dark:bg-slate-800/70 border border-white/6 shadow-sm text-slate-900 dark:text-slate-100">
                   <Stat value="30+" label="Contributors" />
                 </div>
               </div>

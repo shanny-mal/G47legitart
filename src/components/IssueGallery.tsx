@@ -63,6 +63,11 @@ const formatDate = (iso?: string) => {
    Small UI pieces
    --------------------------- */
 
+/**
+ * Upgraded QualityToggle:
+ *  - animated sliding indicator
+ *  - gradient active style
+ */
 function QualityToggle({
   quality,
   onChange,
@@ -70,41 +75,62 @@ function QualityToggle({
   quality: "low" | "high";
   onChange: (q: "low" | "high") => void;
 }) {
+  const reduce = useReducedMotion();
   return (
-    <div className="inline-flex items-center rounded-lg bg-white/6 dark:bg-white/4 p-1 shadow-sm">
-      <button
+    <div className="relative inline-flex items-center rounded-full bg-slate-100/40 dark:bg-slate-800/40 p-1 shadow-inner">
+      <div className="absolute inset-0 rounded-full pointer-events-none" />
+      <motion.button
         aria-pressed={quality === "low"}
         onClick={() => onChange("low")}
-        className={`px-3 py-1 rounded-lg text-sm font-medium transition ${
+        className={`relative z-10 px-3 py-1 rounded-full text-sm font-medium transition ${
           quality === "low"
-            ? "bg-white/90 text-karibaNavy shadow-inner"
-            : "text-gray-600 dark:text-gray-300 hover:bg-white/5"
+            ? "text-slate-900"
+            : "text-slate-600 dark:text-slate-300"
         }`}
+        whileHover={reduce ? undefined : { scale: 1.03 }}
       >
-        Low (preview)
-      </button>
+        Low
+      </motion.button>
 
-      <button
+      <motion.button
         aria-pressed={quality === "high"}
         onClick={() => onChange("high")}
-        className={`px-3 py-1 rounded-lg text-sm font-medium transition ${
+        className={`relative z-10 px-3 py-1 rounded-full text-sm font-medium transition ${
           quality === "high"
-            ? "bg-gradient-to-r from-karibaTeal to-karibaCoral text-black shadow"
-            : "text-gray-600 dark:text-gray-300 hover:bg-white/5"
+            ? "text-white"
+            : "text-slate-600 dark:text-slate-300"
         }`}
+        whileHover={reduce ? undefined : { scale: 1.03 }}
       >
-        High (full)
-      </button>
+        High
+      </motion.button>
+
+      {/* animated indicator */}
+      <motion.div
+        layout
+        initial={false}
+        transition={{ type: "spring", stiffness: 300, damping: 28 }}
+        className={`absolute top-1/2 -translate-y-1/2 w-[48%] h-8 rounded-full shadow-md`}
+        style={{
+          left: quality === "low" ? "4px" : undefined,
+          right: quality === "high" ? "4px" : undefined,
+          background:
+            quality === "high"
+              ? "linear-gradient(90deg,#06b6d4,#fb7185)" // teal -> rose
+              : "linear-gradient(90deg,#eef2ff,#dbeafe)", // soft indigo
+        }}
+        aria-hidden
+      />
     </div>
   );
 }
 
 /* Skeleton card while loading */
 const SkeletonCard = () => (
-  <div className="animate-pulse p-4 rounded-2xl bg-white/6 dark:bg-white/4 min-h-[240px]">
-    <div className="w-full h-40 rounded bg-white/10 mb-4" />
-    <div className="h-4 bg-white/10 rounded w-3/4 mb-2" />
-    <div className="h-3 bg-white/10 rounded w-1/3" />
+  <div className="animate-pulse p-4 rounded-2xl bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-800/70 min-h-[260px] border border-slate-100 dark:border-slate-800 shadow-sm">
+    <div className="w-full h-44 sm:h-52 rounded-lg bg-slate-200 dark:bg-slate-700 mb-4" />
+    <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mb-2" />
+    <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/3" />
   </div>
 );
 
@@ -120,14 +146,13 @@ function PdfModal({
   open: boolean;
   onClose: () => void;
 }) {
-  // <-- changed ref type to HTMLDialogElement | null
+  // motion.dialog may wrap a native dialog; keep ref typed to HTMLDialogElement|null
   const ref = useRef<HTMLDialogElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
     const prev = document.activeElement as HTMLElement | null;
     const el = ref.current;
-    // focus modal container
     el?.focus();
 
     const onKey = (e: KeyboardEvent) => {
@@ -174,10 +199,10 @@ function PdfModal({
           <motion.div
             key="backdrop"
             initial={{ opacity: 0 }}
-            animate={{ opacity: 0.5 }}
+            animate={{ opacity: 0.6 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: reduce ? 0 : 0.18 }}
-            className="fixed inset-0 z-40 bg-black"
+            transition={{ duration: reduce ? 0 : 0.22 }}
+            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
             onClick={onClose}
             aria-hidden
           />
@@ -194,21 +219,23 @@ function PdfModal({
             aria-modal="true"
             aria-label={`Preview ${title}`}
           >
-            <div className="w-full max-w-5xl h-[80vh] bg-white rounded-lg overflow-hidden shadow-xl">
-              <div className="flex items-center justify-between p-3 border-b">
-                <div className="text-sm font-medium">{title}</div>
+            <div className="w-full max-w-6xl h-[84vh] bg-white dark:bg-slate-900 rounded-xl overflow-hidden shadow-2xl ring-1 ring-slate-200 dark:ring-slate-800">
+              <div className="flex items-center justify-between p-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                  {title}
+                </div>
                 <div className="flex items-center gap-2">
                   <a
                     href={url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-3 py-1 rounded bg-white/6 hover:bg-white/8 text-sm"
+                    className="px-3 py-1 rounded-md bg-gradient-to-r from-indigo-100 to-emerald-100 text-slate-900 text-sm hover:brightness-95"
                   >
                     Open in new tab
                   </a>
                   <button
                     onClick={onClose}
-                    className="px-3 py-1 rounded bg-white/6 hover:bg-white/8 text-sm"
+                    className="px-3 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-sm"
                     aria-label="Close preview"
                   >
                     Close
@@ -220,7 +247,7 @@ function PdfModal({
               <iframe
                 src={url}
                 title={title}
-                className="w-full h-full border-0 bg-gray-50"
+                className="w-full h-full border-0 bg-white dark:bg-slate-900"
                 sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
               />
             </div>
@@ -253,38 +280,49 @@ const IssueCard: React.FC<{
   return (
     <motion.article
       layout
-      whileHover={reduce ? {} : { y: -6 }}
+      whileHover={reduce ? {} : { y: -8, scale: 1.01 }}
       whileTap={reduce ? {} : { scale: 0.995 }}
-      className="bg-white rounded-2xl shadow-sm dark:bg-[#052231] overflow-hidden border border-white/6"
+      className="bg-white dark:bg-slate-900 rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-800 shadow-sm"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <div className="relative">
+      <div className="relative group">
         <picture>
-          {/* if your covers include webp variants, you can replace or augment the <source> here */}
           <img
             src={coverSrc}
             alt={issue.title}
-            className="w-full h-48 sm:h-56 object-cover"
+            className="w-full h-48 sm:h-56 object-cover rounded-t-2xl"
             loading="lazy"
             decoding="async"
           />
         </picture>
 
-        <div className="absolute left-3 top-3 px-2 py-1 rounded bg-white/90 text-xs font-medium text-karibaNavy">
+        <div className="absolute left-4 top-4 px-2 py-1 rounded-full bg-white/95 text-xs font-medium text-slate-900 shadow-sm">
           {formatDate(issue.published_at)}
         </div>
+
+        {/* accent glow on hover */}
+        <div
+          aria-hidden
+          className={`pointer-events-none absolute inset-x-0 bottom-0 h-12 blur-3xl opacity-0 transition-all ${
+            hovered ? "opacity-90" : "opacity-0"
+          }`}
+          style={{
+            background:
+              "linear-gradient(90deg, rgba(99,102,241,0.14), rgba(6,182,212,0.16), rgba(251,113,133,0.12))",
+          }}
+        />
       </div>
 
       <div className="p-4">
-        <h4 className="text-base font-semibold text-karibaNavy dark:text-karibaCoral">
+        <h4 className="text-base font-semibold text-slate-900 dark:text-slate-100">
           {issue.title}
         </h4>
 
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-3">
           <button
             onClick={() => onPreview(pdfSrc, issue.title)}
-            className="inline-flex items-center gap-2 px-3 py-2 bg-white/95 text-karibaNavy rounded-md text-sm font-medium shadow-sm hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-karibaTeal/30"
+            className="inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-indigo-500 to-emerald-400 text-white rounded-md text-sm font-medium shadow hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-indigo-300"
             aria-label={`Preview ${issue.title}`}
           >
             Preview
@@ -292,7 +330,7 @@ const IssueCard: React.FC<{
 
           <a
             href={`/issues/${issue.id}`}
-            className="inline-flex items-center gap-2 px-3 py-2 border rounded-md text-sm hover:bg-white/6 focus:outline-none"
+            className="inline-flex items-center gap-2 px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-md text-sm hover:bg-slate-50 dark:hover:bg-slate-800 focus:outline-none"
             aria-label={`Read ${issue.title} online`}
           >
             Read online
@@ -301,7 +339,7 @@ const IssueCard: React.FC<{
           <a
             href={pdfSrc}
             download
-            className="inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-karibaTeal to-karibaCoral text-black rounded-md text-sm font-semibold shadow"
+            className="inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-rose-400 to-amber-300 text-slate-900 rounded-md text-sm font-semibold shadow"
             aria-label={`Download ${issue.title}`}
           >
             Download
@@ -380,20 +418,20 @@ const IssueGallery: React.FC = () => {
   const reduce = useReducedMotion();
 
   return (
-    <section className="py-12">
-      <div className="max-w-7xl mx-auto px-4">
+    <section className="py-12 bg-gradient-to-b from-white to-slate-50 dark:from-slate-900 dark:to-slate-950">
+      <div className="max-w-7xl mx-auto px-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h3 className="text-2xl font-serif text-karibaNavy dark:text-karibaSand">
+            <h3 className="text-3xl font-serif text-slate-900 dark:text-slate-100">
               Issues & Archive
             </h3>
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-              Download full issues or preview lower-resolution previews online.
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400 max-w-xl">
+              Download complete issues or preview lower-resolution copies.
             </p>
           </div>
 
           <div className="flex items-center gap-4">
-            <label className="text-sm text-gray-600 dark:text-gray-300">
+            <label className="text-sm text-slate-600 dark:text-slate-300">
               Preview quality
             </label>
             <QualityToggle quality={quality} onChange={setQuality} />
@@ -410,7 +448,7 @@ const IssueGallery: React.FC = () => {
               <SkeletonCard />
             </>
           ) : issues.length === 0 ? (
-            <div className="col-span-full p-6 rounded-lg bg-white/6 dark:bg-white/4">
+            <div className="col-span-full p-6 rounded-lg bg-slate-100 dark:bg-slate-800 text-center">
               No issues found.
             </div>
           ) : (
@@ -429,9 +467,9 @@ const IssueGallery: React.FC = () => {
         <div className="mt-8 text-center">
           <motion.a
             whileHover={reduce ? {} : { y: -3 }}
-            whileTap={reduce ? {} : { scale: 0.98 }}
+            whileTap={reduce ? {} : { scale: 0.985 }}
             href="/archive"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-karibaTeal to-karibaCoral text-black font-semibold shadow-lg"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-indigo-500 to-emerald-400 text-white font-semibold shadow-lg"
           >
             View full archive
           </motion.a>

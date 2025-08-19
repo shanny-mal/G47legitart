@@ -34,19 +34,18 @@ const NavLinks: React.FC<{ className?: string }> = React.memo(
               key={l.to}
               to={l.to}
               aria-current={active ? "page" : undefined}
-              className={`relative px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200
-              ${
+              className={`relative px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
                 active
                   ? "text-karibaNavy dark:text-karibaSand"
                   : "text-gray-700 dark:text-gray-200 hover:text-karibaTeal"
-              }
-              focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-karibaTeal/30`}
+              } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-karibaTeal/30`}
             >
               {l.label}
               <span
                 aria-hidden
-                className={`absolute left-1/2 transform -translate-x-1/2 -bottom-1 h-[3px] rounded-full bg-karibaTeal transition-all duration-300
-                ${active ? "w-10" : "w-0 group-hover:w-8"}`}
+                className={`absolute left-1/2 transform -translate-x-1/2 -bottom-1 h-[3px] rounded-full bg-gradient-to-r from-karibaTeal to-karibaCoral transition-all duration-300 ${
+                  active ? "w-10" : "w-0 group-hover:w-8"
+                }`}
               />
             </Link>
           );

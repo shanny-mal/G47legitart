@@ -13,8 +13,7 @@ const SubscribeButton: React.FC<{ className?: string }> = React.memo(
       >
         <Link
           to="/subscribe"
-          className="hidden md:inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-karibaTeal to-karibaCoral text-black rounded-full font-semibold shadow-lg
-                   hover:-translate-y-0.5 hover:shadow-2xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-karibaCoral/40 transition-transform duration-200"
+          className="hidden md:inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-karibaTeal to-karibaCoral text-black rounded-full font-semibold shadow-lg hover:-translate-y-0.5 hover:shadow-2xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-karibaCoral/40 transition-transform duration-200"
           aria-label="Subscribe"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" aria-hidden>
