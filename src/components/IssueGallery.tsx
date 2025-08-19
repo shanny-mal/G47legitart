@@ -120,7 +120,8 @@ function PdfModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const ref = useRef<HTMLDivElement | null>(null);
+  // <-- changed ref type to HTMLDialogElement | null
+  const ref = useRef<HTMLDialogElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
