@@ -1,5 +1,5 @@
 import React from "react";
-import HeroSlider from "../components/HeroSlider";
+import HeroSlider from "../components/hero/HeroSlider";
 import Services from "../components/Services";
 import Testimonials from "../components/Testimonials";
 import IssueGallery from "../components/IssueGallery";
