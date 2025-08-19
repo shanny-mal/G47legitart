@@ -1,4 +1,5 @@
-import React, { useEffect, useState, type JSX } from "react";
+// src/components/KMFooter.tsx
+import React, { useEffect, useRef, useState, type JSX } from "react";
 import { motion, useReducedMotion, type Variants } from "framer-motion";
 import {
   FaTwitter,
@@ -7,45 +8,84 @@ import {
   FaWhatsapp,
 } from "react-icons/fa";
 
-function KMFooter(): JSX.Element {
+type SubscribeState = "idle" | "loading" | "ok" | "error";
+
+const SocialButton: React.FC<{
+  href: string;
+  label: string;
+  children: React.ReactNode;
+}> = ({ href, label, children }) => {
+  const reduce = useReducedMotion();
+  const hover = reduce ? {} : { y: -3 };
+  return (
+    <motion.a
+      href={href}
+      aria-label={label}
+      title={label}
+      whileHover={hover}
+      className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-white/6 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-karibaTeal/40"
+    >
+      {children}
+    </motion.a>
+  );
+};
+
+export default function KMFooter(): JSX.Element {
   const [email, setEmail] = useState("");
-  const [ok, setOk] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<SubscribeState>("idle");
+  const [message, setMessage] = useState<string | null>(null);
   const [showMsg, setShowMsg] = useState(false);
+  const mounted = useRef(true);
   const prefersReducedMotion = useReducedMotion();
 
-  // simple email validation
-  const isValidEmail = (e: string) =>
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
-
-  // hide success message automatically after 5s
   useEffect(() => {
-    if (ok) {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (state === "ok" || state === "error") {
       setShowMsg(true);
-      const t = setTimeout(() => setShowMsg(false), 5000);
+      const t = setTimeout(() => {
+        if (mounted.current) setShowMsg(false);
+      }, 6000);
       return () => clearTimeout(t);
     }
-  }, [ok]);
+  }, [state]);
 
-  // subscribe handler with AbortController + timeout
-  const subscribe = async (ev: React.FormEvent) => {
-    ev.preventDefault();
-    setError(null);
+  const isValidEmail = (v: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 
+  const msgVariants: Variants | undefined = prefersReducedMotion
+    ? undefined
+    : {
+        initial: { opacity: 0, y: -6 },
+        animate: { opacity: 1, y: 0, transition: { duration: 0.26 } },
+        exit: { opacity: 0, y: -6, transition: { duration: 0.16 } },
+      };
+
+  async function subscribe(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage(null);
+
+    // basic validation
     if (!email) {
-      setError("Please enter your email address.");
+      setState("error");
+      setMessage("Please enter your email address.");
       return;
     }
     if (!isValidEmail(email)) {
-      setError("Please enter a valid email address.");
+      setState("error");
+      setMessage("Please enter a valid email address.");
       return;
     }
 
-    setLoading(true);
+    setState("loading");
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000); // 10s
+    const timeout = setTimeout(() => controller.abort(), 10000);
 
     try {
       const res = await fetch("/api/subscribe", {
@@ -54,115 +94,131 @@ function KMFooter(): JSX.Element {
         body: JSON.stringify({ email }),
         signal: controller.signal,
       });
-
       clearTimeout(timeout);
 
       if (!res.ok) {
-        let msg = `Subscription failed (${res.status})`;
+        let bodyMsg = `Subscription failed (${res.status})`;
         try {
-          const body = await res.json();
-          if (body?.error) msg = String(body.error);
-          else if (body?.message) msg = String(body.message);
+          const data = await res.json();
+          if (data?.message) bodyMsg = String(data.message);
+          else if (data?.error) bodyMsg = String(data.error);
         } catch {
-          /* ignore JSON parse errors */
+          /* ignore json parse errors */
         }
-        throw new Error(msg);
+        throw new Error(bodyMsg);
       }
 
-      setOk(true);
+      if (!mounted.current) return;
+      setState("ok");
+      setMessage("Thanks — check your inbox for confirmation.");
       setEmail("");
-      setError(null);
     } catch (err: any) {
+      clearTimeout(timeout);
+      if (!mounted.current) return;
       if (err?.name === "AbortError") {
-        setError("Request timed out. Please try again.");
+        setState("error");
+        setMessage("Request timed out. Try again.");
       } else {
-        setError(err?.message ?? "An unknown error occurred.");
+        setState("error");
+        setMessage(err?.message ?? "An error occurred. Try again later.");
       }
-      setOk(false);
     } finally {
-      setLoading(false);
+      if (mounted.current && state !== "loading") {
+        // nothing
+      }
+      // ensure we leave loading state after result
+      setTimeout(() => {
+        if (mounted.current && state === "loading") {
+          // fallback safety - should usually be cleared earlier
+          setState("idle");
+        }
+      }, 11000);
     }
-  };
-
-  // framer-motion variants (use undefined when reduced motion is preferred)
-  const msgVariants: Variants | undefined = prefersReducedMotion
-    ? undefined
-    : {
-        initial: { opacity: 0, y: -6 },
-        animate: { opacity: 1, y: 0, transition: { duration: 0.28 } },
-        exit: { opacity: 0, y: -6, transition: { duration: 0.18 } },
-      };
-
-  const iconVariant: Variants | undefined = prefersReducedMotion
-    ? undefined
-    : {
-        hover: { y: -3, transition: { duration: 0.18 } },
-      };
-
-  // helper to render icon buttons consistently
-  const SocialButton = ({
-    href,
-    label,
-    children,
-  }: {
-    href: string;
-    label: string;
-    children: React.ReactNode;
-  }) => (
-    <motion.a
-      href={href}
-      aria-label={label}
-      title={label}
-      whileHover="hover"
-      variants={iconVariant}
-      className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/6 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-karibaTeal/40"
-    >
-      {children}
-    </motion.a>
-  );
+  }
 
   return (
     <footer className="bg-karibaNavy text-karibaSand py-12">
-      <div className="max-w-6xl mx-auto px-4 grid md:grid-cols-3 gap-8">
-        <div>
-          <div className="font-serif text-2xl font-bold">TheKaribaMagazine</div>
-          <p className="text-sm mt-3 text-karibaSand/80">
-            In-depth features, photo essays and journalism from the Kariba
-            region.
-          </p>
+      <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* Brand */}
+        <div className="space-y-3">
+          <a
+            href="/"
+            className="inline-flex items-center gap-3 focus:outline-none"
+          >
+            {/* simple logo mark */}
+            <div className="w-12 h-12 rounded-md bg-gradient-to-br from-karibaTeal to-karibaCoral flex items-center justify-center text-white font-serif text-lg shadow">
+              KM
+            </div>
+            <div>
+              <div className="font-serif text-2xl font-semibold text-karibaSand">
+                TheKaribaMagazine
+              </div>
+              <div className="text-sm text-karibaSand/80">
+                In-depth features & photojournalism from the Kariba basin.
+              </div>
+            </div>
+          </a>
+
+          <div className="mt-4 flex flex-wrap gap-3">
+            <a
+              href="/about"
+              className="text-sm text-karibaSand/80 hover:underline focus:outline-none"
+            >
+              About
+            </a>
+            <a
+              href="/issues"
+              className="text-sm text-karibaSand/80 hover:underline focus:outline-none"
+            >
+              Issues
+            </a>
+            <a
+              href="/contributors"
+              className="text-sm text-karibaSand/80 hover:underline focus:outline-none"
+            >
+              Contributors
+            </a>
+          </div>
         </div>
 
-        {/* Newsletter form */}
+        {/* Newsletter */}
         <div>
           <form
             onSubmit={subscribe}
             className="flex flex-col gap-3"
             aria-labelledby="newsletter-label"
           >
-            <label id="newsletter-label" className="text-sm font-medium">
-              Subscribe to our newsletter
-            </label>
+            <div>
+              <label
+                id="newsletter-label"
+                className="block text-sm font-medium"
+              >
+                Get our newsletter
+              </label>
+              <div className="mt-1 text-xs text-karibaSand/80">
+                Monthly long-reads, photo essays and editor picks.
+              </div>
+            </div>
 
-            <div className="flex gap-2">
+            <div className="flex items-center gap-0 mt-2">
               <input
-                type="email"
-                name="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                type="email"
+                name="email"
                 placeholder="you@example.com"
                 aria-label="Email address"
-                required
                 className="flex-1 px-3 py-2 rounded-l-md text-black placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-karibaTeal/60"
               />
 
-              <button
+              <motion.button
                 type="submit"
-                disabled={loading}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-karibaCoral text-white rounded-r-md font-semibold shadow-sm
-                           hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-karibaCoral/50 disabled:opacity-60 disabled:cursor-not-allowed transition"
-                aria-disabled={loading}
+                disabled={state === "loading"}
+                whileTap={prefersReducedMotion ? undefined : { scale: 0.98 }}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-karibaTeal to-karibaCoral text-white rounded-r-md font-semibold shadow-sm hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-karibaCoral/50 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                aria-disabled={state === "loading"}
               >
-                {loading ? (
+                {state === "loading" ? (
                   <svg
                     className="w-4 h-4 animate-spin"
                     viewBox="0 0 24 24"
@@ -174,7 +230,7 @@ function KMFooter(): JSX.Element {
                       cy="12"
                       r="10"
                       stroke="white"
-                      strokeOpacity="0.2"
+                      strokeOpacity="0.18"
                       strokeWidth="3"
                     />
                     <path
@@ -208,10 +264,17 @@ function KMFooter(): JSX.Element {
                   </svg>
                 )}
 
-                <span className="text-sm">Subscribe</span>
-              </button>
+                <span className="text-sm">
+                  {state === "ok"
+                    ? "Subscribed"
+                    : state === "loading"
+                    ? "Sending…"
+                    : "Subscribe"}
+                </span>
+              </motion.button>
             </div>
 
+            {/* hidden honeypot */}
             <div aria-hidden className="hidden">
               <label>Leave this field empty</label>
               <input
@@ -223,13 +286,7 @@ function KMFooter(): JSX.Element {
             </div>
 
             <div className="min-h-[1.25rem]">
-              {error && (
-                <div role="alert" className="text-xs text-red-300">
-                  {error}
-                </div>
-              )}
-
-              {ok && showMsg && (
+              {showMsg && state === "ok" && (
                 <motion.div
                   initial="initial"
                   animate="animate"
@@ -253,17 +310,31 @@ function KMFooter(): JSX.Element {
                       strokeLinejoin="round"
                     />
                   </svg>
-                  <span>Thanks — check your inbox for a confirmation.</span>
+                  <span>{message ?? "Thanks — check your inbox."}</span>
+                </motion.div>
+              )}
+
+              {showMsg && state === "error" && (
+                <motion.div
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  variants={msgVariants}
+                  className="text-xs text-red-300"
+                  role="alert"
+                >
+                  {message ?? "Something went wrong. Please try again."}
                 </motion.div>
               )}
             </div>
           </form>
         </div>
 
-        {/* Socials & links */}
+        {/* Socials & legal */}
         <div>
           <h5 className="font-semibold">Follow</h5>
-          <div className="flex gap-3 mt-2">
+
+          <div className="mt-3 flex items-center gap-3">
             <SocialButton href="#" label="X (Twitter)">
               <FaTwitter size={16} className="text-karibaSand" aria-hidden />
             </SocialButton>
@@ -281,18 +352,15 @@ function KMFooter(): JSX.Element {
             </SocialButton>
           </div>
 
-          <nav className="mt-4 text-sm">
-            <a
-              className="block text-karibaSand/80 hover:underline"
-              href="/privacy"
-            >
+          <nav className="mt-4 text-sm grid gap-1">
+            <a className="text-karibaSand/80 hover:underline" href="/privacy">
               Privacy
             </a>
-            <a
-              className="block text-karibaSand/80 hover:underline"
-              href="/terms"
-            >
+            <a className="text-karibaSand/80 hover:underline" href="/terms">
               Terms
+            </a>
+            <a className="text-karibaSand/80 hover:underline" href="/contact">
+              Contact
             </a>
           </nav>
         </div>
@@ -304,5 +372,3 @@ function KMFooter(): JSX.Element {
     </footer>
   );
 }
-
-export default KMFooter;
