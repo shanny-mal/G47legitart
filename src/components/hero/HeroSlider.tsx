@@ -5,23 +5,13 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import Slide from "./Slide";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import Slide, { type SlideData } from "./Slide";
 import Dots from "./Dots";
 import useInterval from "../../hooks/useInterval";
-import usePrefersReducedMotion from "../../hooks/usePrefersReducedMotion";
+import usePrefersReducedMotion from "./usePrefersReducedMotion";
 import useInView from "../../hooks/useInView";
-
-/* Helper to build bundler-friendly asset URLs (if you still use baseName approach, adapt accordingly) */
-
-export type SlideData = {
-  id: number;
-  title: string;
-  subtitle?: string;
-  /** for the updated responsive approach Slide expects baseName */
-  baseName: string;
-  alt?: string;
-};
+import useTypewriter from "./useTypewriter";
 
 const SLIDES: SlideData[] = [
   {
@@ -29,183 +19,145 @@ const SLIDES: SlideData[] = [
     title: "Issue 29 - Photography in winter",
     subtitle: "A look at the beauty of winter photography",
     baseName: "hero1",
-    alt: "Fisherman on the Kariba lake",
   },
   {
     id: 2,
     title: "The benefits of physical regular exercise",
     subtitle: "A look at the impact of exercise on health",
     baseName: "hero2",
-    alt: "Flooded riverside community",
   },
   {
     id: 3,
     title: "Breast cancer awareness",
     subtitle: "A look at the impact of breast cancer in Africa",
     baseName: "hero3",
-    alt: "Photojournalist with camera",
   },
   {
     id: 4,
     title: "Beauty and wellness",
     subtitle: "A look at the beauty and wellness industry",
     baseName: "hero4",
-    alt: "Magazine spread",
   },
   {
     id: 5,
     title: "Valentine's Day",
     subtitle: "A look at the celebration of love",
     baseName: "hero5",
-    alt: "Magazine spread",
   },
   {
     id: 6,
     title: "Cultural Gems",
     subtitle: "Discover the hidden treasures of Africa",
     baseName: "hero6",
-    alt: "Magazine spread",
   },
   {
     id: 7,
     title: "Subscribe for premium issues",
     subtitle: "Download full issues as PDF",
     baseName: "hero7",
-    alt: "Magazine spread",
   },
   {
     id: 8,
-    title: "Subscribe for premium issues",
-    subtitle: "Download full issues as PDF",
+    title: "Behind the lens",
+    subtitle: "Meet the photographers telling our stories",
     baseName: "hero8",
-    alt: "Magazine spread",
   },
   {
     id: 9,
-    title: "Subscribe for premium issues",
-    subtitle: "Download full issues as PDF",
+    title: "Season highlights",
+    subtitle: "A selection of powerful visuals",
     baseName: "hero9",
-    alt: "Magazine spread",
   },
 ];
 
 const AUTOPLAY_MS = 6000;
-const WIDTHS = [480, 768, 1200, 1800, 2400];
-
-function pickBestCandidate(baseName: string) {
-  if (typeof window === "undefined") {
-    // SSR fallback
-    return {
-      href: new URL(
-        `../../assets/images/background/${baseName}-1200.webp`,
-        import.meta.url
-      ).href,
-      as: "image" as const,
-    };
-  }
-  const dpr = window.devicePixelRatio || 1;
-  const vw = Math.max(320, Math.min(window.innerWidth, 3840));
-  const needed = Math.ceil(vw * dpr);
-  const candidate =
-    WIDTHS.find((w) => w >= needed) ?? WIDTHS[WIDTHS.length - 1];
-  const href = new URL(
-    `../../assets/images/background/${baseName}-${candidate}.webp`,
-    import.meta.url
-  ).href;
-  return { href, as: "image" as const };
-}
+const PRELOAD_WIDTHS = [480, 768, 1200, 1800, 2400];
 
 export default function HeroSlider(): React.ReactElement {
   const [index, setIndex] = useState(0);
-
-  // use a concrete HTMLElement ref so JSX ref and DOM usage match
   const containerRef = useRef<HTMLElement | null>(null);
 
-  // prefers reduced motion
   const prefersReducedMotion = usePrefersReducedMotion();
+  const framerReduced = useReducedMotion();
+  const reduce = prefersReducedMotion || framerReduced;
 
-  // safe call to useInView accepts nullable ref
   const inView = useInView(containerRef, {
     rootMargin: "0px",
     threshold: 0.35,
   });
-
   const slides = useMemo(() => SLIDES, []);
 
-  // autoplay only when visible and motion allowed
-  useInterval(
-    () => setIndex((i) => (i + 1) % slides.length),
-    inView && !prefersReducedMotion ? AUTOPLAY_MS : null
+  const [paused, setPaused] = useState(false);
+  const pause = useCallback(() => setPaused(true), []);
+  const resume = useCallback(() => setPaused(false), []);
+
+  // use typewriter for title + subtitle
+  const { typedTitle, typedSubtitle, isTyping } = useTypewriter(
+    slides[index].title,
+    slides[index].subtitle ?? "",
+    { speed: 35, pauseBetween: 260, instant: prefersReducedMotion }
   );
 
-  // preload best candidate for current slide (useEffect must return void cleanup)
+  // autoplay (respects visibility, reduced motion and user pause)
+  useInterval(
+    () => setIndex((i) => (i + 1) % slides.length),
+    inView && !prefersReducedMotion && !paused ? AUTOPLAY_MS : null
+  );
+
+  // preload candidate (safe checks)
   useEffect(() => {
+    if (typeof window === "undefined") return;
     try {
-      const { href, as } = pickBestCandidate(slides[index].baseName);
+      const dpr = window.devicePixelRatio || 1;
+      const vw = Math.max(320, Math.min(window.innerWidth, 3840));
+      const needed = Math.ceil(vw * dpr);
+      const candidate =
+        PRELOAD_WIDTHS.find((w) => w >= needed) ??
+        PRELOAD_WIDTHS[PRELOAD_WIDTHS.length - 1];
+      const href = new URL(
+        `../../assets/images/background/${slides[index].baseName}-${candidate}.webp`,
+        import.meta.url
+      ).href;
       const link = document.createElement("link");
       link.rel = "preload";
-      link.as = as;
+      link.as = "image";
       link.href = href;
       document.head.appendChild(link);
-
-      // cleanup
       return () => {
         if (link.parentNode) link.parentNode.removeChild(link);
       };
     } catch {
-      // noop on any error
-      return;
+      // ignore
     }
   }, [index, slides]);
 
-  // preload next slide image (non-blocking)
-  useEffect(() => {
-    const next = slides[(index + 1) % slides.length];
-    const img = new Image();
-    img.src = new URL(
-      `../../assets/images/background/${next.baseName}-1200.webp`,
-      import.meta.url
-    ).href;
-    return () => {
-      // nothing to clean up for Image
-    };
-  }, [index, slides]);
-
-  // keyboard nav
+  // keyboard navigation
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft")
         setIndex((i) => (i - 1 + slides.length) % slides.length);
-      if (e.key === "ArrowRight") setIndex((i) => (i + 1) % slides.length);
+      else if (e.key === "ArrowRight") setIndex((i) => (i + 1) % slides.length);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [slides.length]);
 
-  // Pause on hover/focus
-  const [, setIsPaused] = useState(false);
-  const pause = useCallback(() => setIsPaused(true), []);
-  const resume = useCallback(() => setIsPaused(false), []);
-
-  // Touch / swipe support (simple)
-  const touchStartX = useRef<number | null>(null);
+  // touch swipe
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-
-    const onTouchStart = (ev: TouchEvent) => {
-      touchStartX.current = ev.touches[0]?.clientX ?? null;
-    };
+    let touchStartX: number | null = null;
+    const onTouchStart = (ev: TouchEvent) =>
+      (touchStartX = ev.touches?.[0]?.clientX ?? null);
     const onTouchEnd = (ev: TouchEvent) => {
-      if (touchStartX.current == null) return;
-      const dx = ev.changedTouches[0]?.clientX - touchStartX.current;
+      if (touchStartX == null) return;
+      const dx = (ev.changedTouches?.[0]?.clientX ?? 0) - touchStartX;
       const threshold = 50;
       if (dx > threshold)
         setIndex((i) => (i - 1 + slides.length) % slides.length);
       else if (dx < -threshold) setIndex((i) => (i + 1) % slides.length);
-      touchStartX.current = null;
+      touchStartX = null;
     };
-
     el.addEventListener("touchstart", onTouchStart, { passive: true });
     el.addEventListener("touchend", onTouchEnd);
     return () => {
@@ -213,6 +165,17 @@ export default function HeroSlider(): React.ReactElement {
       el.removeEventListener("touchend", onTouchEnd);
     };
   }, [slides.length]);
+
+  const prev = useCallback(
+    () => setIndex((i) => (i - 1 + slides.length) % slides.length),
+    [slides.length]
+  );
+  const next = useCallback(
+    () => setIndex((i) => (i + 1) % slides.length),
+    [slides.length]
+  );
+
+  const activeSlide = slides[index];
 
   return (
     <section
@@ -222,83 +185,119 @@ export default function HeroSlider(): React.ReactElement {
       onMouseLeave={resume}
       onFocus={pause}
       onBlur={resume}
+      aria-roledescription="carousel"
     >
       <AnimatePresence initial={false} mode="wait">
-        {slides.map((s, i) =>
-          i === index ? (
-            <motion.div
-              key={s.id}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: prefersReducedMotion ? 0 : 0.6 }}
-              className="absolute inset-0 z-10"
-              aria-hidden={i !== index}
-            >
-              <Slide slide={s} priority />
-            </motion.div>
-          ) : null
+        {activeSlide && (
+          <motion.div
+            key={activeSlide.id}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: reduce ? 0 : 0.6 }}
+            className="absolute inset-0 z-10"
+            aria-hidden={false}
+          >
+            <Slide slide={activeSlide} />
+          </motion.div>
         )}
       </AnimatePresence>
 
+      {/* overlay */}
       <div
         aria-hidden
         className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-black/10 to-black/20 mix-blend-multiply"
       />
 
+      {/* content */}
       <div className="relative z-20 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center">
         <div className="max-w-3xl">
           <div className="sr-only" aria-live="polite">
-            {slides[index].title}: {slides[index].subtitle}
+            {activeSlide?.title}: {activeSlide?.subtitle}
           </div>
 
           <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-serif text-white drop-shadow-lg leading-tight">
-            {slides[index].title}
+            <span aria-hidden>{typedTitle}</span>
+            <span className="sr-only">{activeSlide?.title}</span>
+            {!reduce && (
+              <span className="inline-block ml-1 animate-pulse text-white">
+                ▌
+              </span>
+            )}
           </h2>
-          <p className="mt-3 text-sm sm:text-base md:text-lg text-white/90">
-            {slides[index].subtitle}
-          </p>
 
+          <motion.p
+            key={index + "-subtitle"}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{
+              duration: reduce ? 0 : 0.35,
+              delay: isTyping ? 0.2 : 0,
+            }}
+            className="mt-3 text-sm sm:text-base md:text-lg text-white/90 min-h-[1.5rem]"
+          >
+            {typedSubtitle}
+            <span className="sr-only">{activeSlide?.subtitle}</span>
+          </motion.p>
+
+          {/* CTAs */}
           <div className="mt-6 flex gap-3">
-            <a
+            <motion.a
+              whileHover={reduce ? {} : { scale: 1.02 }}
+              whileTap={reduce ? {} : { scale: 0.98 }}
               href="/issues"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white/90 text-karibaNavy rounded-md font-semibold shadow hover:scale-[1.02] transition"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white/90 text-karibaNavy rounded-md font-semibold shadow transform transition"
+              aria-label="Browse issues"
             >
-              Browse issues
-            </a>
-            <a
+              <motion.span layout>Browse issues</motion.span>
+            </motion.a>
+
+            <motion.a
+              whileHover={
+                reduce
+                  ? {}
+                  : { scale: 1.03, boxShadow: "0 10px 30px rgba(0,0,0,0.35)" }
+              }
+              whileTap={reduce ? {} : { scale: 0.98 }}
               href="/subscribe"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-karibaCoral text-white rounded-md font-semibold shadow hover:brightness-95 transition"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-karibaTeal to-karibaCoral text-white rounded-md font-semibold shadow"
+              aria-label="Subscribe"
             >
-              Subscribe
-            </a>
+              <motion.span layout>Subscribe</motion.span>
+            </motion.a>
           </div>
         </div>
       </div>
 
+      {/* dots */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30">
         <Dots
           count={slides.length}
           active={index}
           onSelect={(i) => setIndex(i)}
-          className="md:bottom-8"
         />
       </div>
 
-      <button
+      {/* prev/next */}
+      <motion.button
         aria-label="Previous slide"
-        onClick={() => setIndex((i) => (i - 1 + slides.length) % slides.length)}
+        onClick={prev}
+        whileHover={reduce ? {} : { scale: 1.1 }}
+        whileTap={reduce ? {} : { scale: 0.95 }}
         className="absolute left-4 top-1/2 -translate-y-1/2 z-30 p-2 rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/30"
       >
         ‹
-      </button>
-      <button
+      </motion.button>
+
+      <motion.button
         aria-label="Next slide"
-        onClick={() => setIndex((i) => (i + 1) % slides.length)}
+        onClick={next}
+        whileHover={reduce ? {} : { scale: 1.1 }}
+        whileTap={reduce ? {} : { scale: 0.95 }}
         className="absolute right-4 top-1/2 -translate-y-1/2 z-30 p-2 rounded-full bg-white/10 text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/30"
       >
         ›
-      </button>
+      </motion.button>
     </section>
   );
 }
