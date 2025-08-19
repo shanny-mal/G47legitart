@@ -215,7 +215,7 @@ const Services: React.FC = () => {
             whileHover={reduce ? {} : { y: -3 }}
             whileTap={reduce ? {} : { scale: 0.98 }}
             href="/contact"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-karibaTeal to-karibaCoral text-white font-semibold shadow-lg focus:outline-none focus:ring-2 focus:ring-karibaTeal/30"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-karibaTeal to-karibaCoral text-black font-semibold shadow-lg focus:outline-none focus:ring-2 focus:ring-karibaTeal/30"
           >
             Get a quote
             <svg
