@@ -1,37 +1,25 @@
 import type { Variants } from "framer-motion";
 
-export const logoFloatVariant = (reduceMotion: boolean): Variants =>
-  reduceMotion
-    ? {}
-    : {
-        animate: {
-          y: [0, -4, 0],
-          transition: {
-            duration: 3.5,
-            repeat: Infinity,
-            ease: "easeInOut" as const,
-          },
-        },
-      };
-
-export const mobileMenuVariants: Variants = {
-  hidden: { opacity: 0, y: -8, scale: 0.995 },
-  visible: {
+export const menuVariants: Variants = {
+  closed: { opacity: 0, y: -8, transition: { duration: 0.18 } },
+  open: {
     opacity: 1,
     y: 0,
-    scale: 1,
-    transition: { type: "spring" as const, stiffness: 280, damping: 30 },
+    transition: { type: "spring", stiffness: 280, damping: 28 },
   },
-  exit: { opacity: 0, y: -6, transition: { duration: 0.14 } },
-};
-
-export const linksContainerVariants: Variants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.06, delayChildren: 0.04 } },
 };
 
 export const linkItemVariants: Variants = {
-  hidden: { opacity: 0, y: -8 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.26 } },
-  exit: { opacity: 0, y: -6, transition: { duration: 0.12 } },
+  closed: { opacity: 0, y: -6 },
+  open: { opacity: 1, y: 0, transition: { duration: 0.22 } },
 };
+
+export const logoFloat = (reduced: boolean): Partial<Variants> =>
+  reduced
+    ? {}
+    : {
+        animate: {
+          y: [0, -3, 0],
+          transition: { duration: 3.5, repeat: Infinity, ease: "easeInOut" },
+        },
+      };

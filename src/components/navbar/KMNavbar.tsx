@@ -1,25 +1,21 @@
-// src/components/KMNavbar.tsx (lazy ThemeToggle)
+// src/components/KMNavbar.tsx
 import React, { useCallback, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-
 import Logo from "./Logo";
 import NavLinks from "./NavLinks";
 import SubscribeButton from "./SubscribeButton";
+import ThemeToggle from "./ThemeToggle";
 import MobileMenu from "./MobileMenu";
-
-// lazy import ThemeToggle to split it out of initial bundle
-const ThemeToggle = React.lazy(() => import("../ThemeToggle"));
 
 const KMNavbar: React.FC = () => {
   const [open, setOpen] = useState(false);
-  const reduceMotion = useReducedMotion();
-
+  const reduceMotion = Boolean(useReducedMotion());
   const toggle = useCallback(() => setOpen((o) => !o), []);
   const close = useCallback(() => setOpen(false), []);
 
   return (
-    <header className="w-full sticky top-0 z-50 bg-karibaSand/95 dark:bg-karibaNavy/95 backdrop-blur-md border-b border-karibaSand/70 dark:border-[#05202a]">
-      <nav className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+    <header className="w-full sticky top-0 z-50 bg-white/60 dark:bg-[#04202a]/60 backdrop-blur-md border-b border-white/10 dark:border-[#05202a]">
+      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Logo />
         </div>
@@ -27,30 +23,23 @@ const KMNavbar: React.FC = () => {
         <NavLinks />
 
         <div className="flex items-center gap-3">
-          {/* Lazy load ThemeToggle with a small fallback */}
-          <React.Suspense
-            fallback={
-              <div className="w-8 h-8 rounded bg-white/5" aria-hidden />
-            }
-          >
-            <ThemeToggle />
-          </React.Suspense>
-
+          <ThemeToggle />
           <SubscribeButton />
 
-          {/* Mobile toggle */}
           <button
-            className="md:hidden p-2 rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-karibaTeal/40"
             onClick={toggle}
-            aria-controls="mobile-menu"
             aria-expanded={open}
+            aria-controls="mobile-menu"
             aria-label={open ? "Close menu" : "Open menu"}
+            className="md:hidden inline-flex items-center justify-center p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-karibaTeal/30"
           >
             <motion.svg
-              className="w-6 h-6 text-gray-800 dark:text-gray-100"
               viewBox="0 0 24 24"
+              className="w-6 h-6 text-karibaNavy dark:text-karibaSand"
               initial={false}
-              animate={open ? { rotate: 45 } : { rotate: 0 }}
+              animate={
+                open ? { rotate: 45, scale: 1.02 } : { rotate: 0, scale: 1 }
+              }
               transition={{ duration: reduceMotion ? 0 : 0.18 }}
             >
               <path
@@ -64,7 +53,7 @@ const KMNavbar: React.FC = () => {
             </motion.svg>
           </button>
         </div>
-      </nav>
+      </div>
 
       <MobileMenu isOpen={open} onClose={close} />
     </header>
