@@ -7,6 +7,7 @@ export const LINKS: LinkItem[] = [
   { to: "/", label: "Home" },
   { to: "/contributors", label: "Contributors" },
   { to: "/services", label: "Services" },
+  { to: "/discussion", label: "Discussion" },
   { to: "/login", label: "Login" },
 ];
 
