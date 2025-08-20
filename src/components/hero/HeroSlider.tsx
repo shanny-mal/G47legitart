@@ -1,3 +1,4 @@
+// src/components/hero/HeroSlider.tsx
 import React, {
   useCallback,
   useEffect,
@@ -8,7 +9,7 @@ import React, {
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import Slide, { type SlideData } from "./Slide";
 import Dots from "./Dots";
-import useInterval from "../../hooks/useInterval";
+// removed useInterval — we use a controlled timeout instead
 import usePrefersReducedMotion from "./usePrefersReducedMotion";
 import useInView from "../../hooks/useInView";
 import useTypewriter from "./useTypewriter";
@@ -70,12 +71,16 @@ const SLIDES: SlideData[] = [
   },
 ];
 
-const AUTOPLAY_MS = 6000;
+const AUTOPLAY_MS = 6000; // how long each slide is visible (ms)
+const INTERACTION_PAUSE_MS = 8000; // pause autoplay for this long after user interaction
 const PRELOAD_WIDTHS = [480, 768, 1200, 1800, 2400];
 
 export default function HeroSlider(): React.ReactElement {
   const [index, setIndex] = useState(0);
   const containerRef = useRef<HTMLElement | null>(null);
+  const timerRef = useRef<number | null>(null);
+  const pausedUntilRef = useRef<number>(0); // timestamp until which autoplay is paused due to interaction
+  const lastInteractionRef = useRef<number>(0);
 
   const prefersReducedMotion = usePrefersReducedMotion();
   const framerReduced = useReducedMotion();
@@ -87,24 +92,121 @@ export default function HeroSlider(): React.ReactElement {
   });
   const slides = useMemo(() => SLIDES, []);
 
-  const [paused, setPaused] = useState(false);
-  const pause = useCallback(() => setPaused(true), []);
-  const resume = useCallback(() => setPaused(false), []);
+  // pause state for hover/focus (these are user-driven)
+  const [hoverPause, setHoverPause] = useState(false);
 
-  // slightly faster typewriter but still pleasant
+  // typewriter - instant when reduced motion requested
   const { typedTitle, typedSubtitle, isTyping } = useTypewriter(
     slides[index].title,
     slides[index].subtitle ?? "",
     { speed: 34, pauseBetween: 240, instant: prefersReducedMotion }
   );
 
-  // autoplay (respects visibility, reduced motion and user pause)
-  useInterval(
-    () => setIndex((i) => (i + 1) % slides.length),
-    inView && !prefersReducedMotion && !paused ? AUTOPLAY_MS : null
+  // helper: mark a user interaction so autoplay pauses for INTERACTION_PAUSE_MS
+  const noteUserInteraction = useCallback(() => {
+    const until = Date.now() + INTERACTION_PAUSE_MS;
+    pausedUntilRef.current = until;
+    lastInteractionRef.current = Date.now();
+    // reset any existing timer so the new pause takes effect immediately
+    if (timerRef.current) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  // navigation helpers (stable)
+  const prev = useCallback(() => {
+    noteUserInteraction();
+    setIndex((i) => (i - 1 + slides.length) % slides.length);
+  }, [noteUserInteraction, slides.length]);
+
+  const next = useCallback(() => {
+    noteUserInteraction();
+    setIndex((i) => (i + 1) % slides.length);
+  }, [noteUserInteraction, slides.length]);
+
+  const goTo = useCallback(
+    (i: number) => {
+      noteUserInteraction();
+      setIndex(() => Math.max(0, Math.min(i, slides.length - 1)));
+    },
+    [noteUserInteraction, slides.length]
   );
 
-  // preload a sensible candidate for the active slide to reduce flashes
+  // controlled autoplay via setTimeout that resets whenever dependencies change
+  useEffect(() => {
+    // clear any previous timer
+    if (timerRef.current) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+
+    // conditions to enable autoplay:
+    const now = Date.now();
+    const userPaused = pausedUntilRef.current > now;
+    const shouldAutoplay = inView && !reduce && !hoverPause && !userPaused;
+
+    // also wait for typewriter to finish before scheduling the next slide
+    const typingActive = isTyping && !prefersReducedMotion;
+
+    if (shouldAutoplay && !typingActive) {
+      timerRef.current = window.setTimeout(() => {
+        setIndex((i) => (i + 1) % slides.length);
+        timerRef.current = null;
+      }, AUTOPLAY_MS);
+    }
+
+    return () => {
+      if (timerRef.current) {
+        window.clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [
+    index,
+    inView,
+    reduce,
+    hoverPause,
+    slides.length,
+    isTyping,
+    prefersReducedMotion,
+  ]);
+
+  // keyboard nav (left/right) with interaction note
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") prev();
+      else if (e.key === "ArrowRight") next();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [prev, next]);
+
+  // swipe handling (touch) — keeps minimal and notes interaction
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    let touchStartX: number | null = null;
+    const onTouchStart = (ev: TouchEvent) => {
+      touchStartX = ev.touches?.[0]?.clientX ?? null;
+    };
+    const onTouchEnd = (ev: TouchEvent) => {
+      if (touchStartX == null) return;
+      const dx = (ev.changedTouches?.[0]?.clientX ?? 0) - touchStartX;
+      const threshold = 50;
+      if (dx > threshold) prev();
+      else if (dx < -threshold) next();
+      touchStartX = null;
+    };
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchend", onTouchEnd);
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [prev, next]);
+
+  // preload sensible candidate for the active slide (keeps current logic)
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -131,60 +233,27 @@ export default function HeroSlider(): React.ReactElement {
     }
   }, [index, slides]);
 
-  // keyboard navigation
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft")
-        setIndex((i) => (i - 1 + slides.length) % slides.length);
-      else if (e.key === "ArrowRight") setIndex((i) => (i + 1) % slides.length);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [slides.length]);
-
-  // touch swipe
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    let touchStartX: number | null = null;
-    const onTouchStart = (ev: TouchEvent) =>
-      (touchStartX = ev.touches?.[0]?.clientX ?? null);
-    const onTouchEnd = (ev: TouchEvent) => {
-      if (touchStartX == null) return;
-      const dx = (ev.changedTouches?.[0]?.clientX ?? 0) - touchStartX;
-      const threshold = 50;
-      if (dx > threshold)
-        setIndex((i) => (i - 1 + slides.length) % slides.length);
-      else if (dx < -threshold) setIndex((i) => (i + 1) % slides.length);
-      touchStartX = null;
-    };
-    el.addEventListener("touchstart", onTouchStart, { passive: true });
-    el.addEventListener("touchend", onTouchEnd);
-    return () => {
-      el.removeEventListener("touchstart", onTouchStart);
-      el.removeEventListener("touchend", onTouchEnd);
-    };
-  }, [slides.length]);
-
-  const prev = useCallback(
-    () => setIndex((i) => (i - 1 + slides.length) % slides.length),
-    [slides.length]
-  );
-  const next = useCallback(
-    () => setIndex((i) => (i + 1) % slides.length),
-    [slides.length]
-  );
-
+  // active slide reference
   const activeSlide = slides[index];
 
   return (
     <section
       ref={containerRef as React.RefObject<HTMLElement>}
       className="relative w-full h-[60vh] md:h-[75vh] lg:h-[85vh] overflow-hidden select-none"
-      onMouseEnter={pause}
-      onMouseLeave={resume}
-      onFocus={pause}
-      onBlur={resume}
+      onMouseEnter={() => {
+        setHoverPause(true);
+        noteUserInteraction();
+      }}
+      onMouseLeave={() => {
+        setHoverPause(false);
+      }}
+      onFocus={() => {
+        setHoverPause(true);
+        noteUserInteraction();
+      }}
+      onBlur={() => {
+        setHoverPause(false);
+      }}
       aria-roledescription="carousel"
     >
       <AnimatePresence initial={false} mode="wait">
@@ -203,7 +272,7 @@ export default function HeroSlider(): React.ReactElement {
         )}
       </AnimatePresence>
 
-      {/* subtle multiply overlay to deepen contrast and make text pop */}
+      {/* overlay */}
       <div
         aria-hidden
         className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-black/10 to-black/25 mix-blend-multiply"
@@ -270,7 +339,9 @@ export default function HeroSlider(): React.ReactElement {
         <Dots
           count={slides.length}
           active={index}
-          onSelect={(i) => setIndex(i)}
+          onSelect={(i) => {
+            goTo(i);
+          }}
         />
       </div>
 

@@ -23,7 +23,7 @@ function buildSrcSet(map: Record<string, string>) {
  * Slide component
  * - blurred DIV background (uses CSS background-image): avoids broken-image white flash
  * - foreground img loads and fades in when ready
- * - supports webp/jpg variants via import.meta.glob (eager/lazy)
+ * - supports webp/jpg/jpeg variants via import.meta.glob (eager/lazy)
  */
 export default function Slide({ slide }: { slide?: SlideData }) {
   if (!slide) {
@@ -41,12 +41,17 @@ export default function Slide({ slide }: { slide?: SlideData }) {
 
   const base = slide.baseName;
 
-  // eager/lazy maps for webp/jpg/jpeg
+  // -------------------------
+  // import.meta.glob (new API)
+  // eager maps return Record<string, string> (url strings)
+  // lazy maps return Record<string, () => Promise<string>>
+  // -------------------------
   const eagerWebp = useMemo(
     () =>
       (import.meta.glob("../../assets/images/background/*.webp", {
         eager: true,
-        as: "url",
+        query: "?url",
+        import: "default",
       }) as Record<string, string>) || {},
     []
   );
@@ -54,7 +59,8 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     () =>
       (import.meta.glob("../../assets/images/background/*.jpg", {
         eager: true,
-        as: "url",
+        query: "?url",
+        import: "default",
       }) as Record<string, string>) || {},
     []
   );
@@ -62,43 +68,45 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     () =>
       (import.meta.glob("../../assets/images/background/*.jpeg", {
         eager: true,
-        as: "url",
+        query: "?url",
+        import: "default",
       }) as Record<string, string>) || {},
     []
   );
 
   const lazyWebp = useMemo(
     () =>
-      (import.meta.glob("../../assets/images/background/*.webp") as Record<
-        string,
-        () => Promise<{ default: string }>
-      >) || {},
+      (import.meta.glob("../../assets/images/background/*.webp", {
+        query: "?url",
+        import: "default",
+      }) as Record<string, () => Promise<string>>) || {},
     []
   );
   const lazyJpg = useMemo(
     () =>
-      (import.meta.glob("../../assets/images/background/*.jpg") as Record<
-        string,
-        () => Promise<{ default: string }>
-      >) || {},
+      (import.meta.glob("../../assets/images/background/*.jpg", {
+        query: "?url",
+        import: "default",
+      }) as Record<string, () => Promise<string>>) || {},
     []
   );
   const lazyJpeg = useMemo(
     () =>
-      (import.meta.glob("../../assets/images/background/*.jpeg") as Record<
-        string,
-        () => Promise<{ default: string }>
-      >) || {},
+      (import.meta.glob("../../assets/images/background/*.jpeg", {
+        query: "?url",
+        import: "default",
+      }) as Record<string, () => Promise<string>>) || {},
     []
   );
 
+  // state maps and placeholder
   const [webpMap, setWebpMap] = useState<Record<string, string>>({});
   const [jpgMap, setJpgMap] = useState<Record<string, string>>({});
   const [placeholder, setPlaceholder] = useState<string | null>(
     () => slide.image ?? null
   );
 
-  // states for render flow
+  // render-flow states
   const [bgLoaded, setBgLoaded] = useState(false);
   const [fgLoaded, setFgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -106,6 +114,8 @@ export default function Slide({ slide }: { slide?: SlideData }) {
 
   useEffect(() => {
     mounted.current = true;
+
+    // reset
     setWebpMap({});
     setJpgMap({});
     setPlaceholder(slide.image ?? null);
@@ -161,18 +171,22 @@ export default function Slide({ slide }: { slide?: SlideData }) {
       }
 
       if (process.env.NODE_ENV === "development") {
+        // debug
         // eslint-disable-next-line no-console
         console.debug(
           `[Slide] eager webp keys for base=${base}`,
-          Object.keys(eagerWebp)
+          Object.keys(eagerWebp).map((k) => k.split("/").pop())
         );
         // eslint-disable-next-line no-console
-        console.debug(`[Slide] eager jpg/jpeg keys for base=${base}`, [
-          ...Object.keys(eagerJpg),
-          ...Object.keys(eagerJpeg),
-        ]);
+        console.debug(
+          `[Slide] eager jpg/jpeg keys for base=${base}`,
+          [...Object.keys(eagerJpg), ...Object.keys(eagerJpeg)].map((k) =>
+            k.split("/").pop()
+          )
+        );
       }
 
+      // if we found variants or single files in eager step then skip lazy imports
       if (
         Object.keys(wRes.wMap).length > 0 ||
         Object.keys(combinedJpgMap).length > 0 ||
@@ -180,6 +194,7 @@ export default function Slide({ slide }: { slide?: SlideData }) {
         jRes.singleUrl ||
         jxRes.singleUrl
       ) {
+        // short-circuit: we already have what we need
         return () => {
           mounted.current = false;
         };
@@ -192,28 +207,35 @@ export default function Slide({ slide }: { slide?: SlideData }) {
       );
     }
 
+    // helper to safely call a lazy importer (now returns string)
     const callImporter = async (
-      imp?: (() => Promise<{ default: string }>) | null
-    ) => {
+      imp?: (() => Promise<string>) | null
+    ): Promise<string | null> => {
       if (!imp) return null;
-      return imp();
+      try {
+        return await imp();
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn("[Slide] lazy import failed for importer", err);
+        return null;
+      }
     };
 
     (async () => {
       try {
         const webpEntries: Array<{
           width: string;
-          importer: () => Promise<{ default: string }>;
+          importer: () => Promise<string>;
         }> = [];
         const jpgEntries: Array<{
           width: string;
-          importer: () => Promise<{ default: string }>;
+          importer: () => Promise<string>;
         }> = [];
-        let singleWebpImp: (() => Promise<{ default: string }>) | null = null;
-        let singleJpgImp: (() => Promise<{ default: string }>) | null = null;
+        let singleWebpImp: (() => Promise<string>) | null = null;
+        let singleJpgImp: (() => Promise<string>) | null = null;
 
         const inspectLazy = (
-          map: Record<string, () => Promise<{ default: string }>>,
+          map: Record<string, () => Promise<string>>,
           ext: string
         ) => {
           for (const key of Object.keys(map)) {
@@ -242,13 +264,14 @@ export default function Slide({ slide }: { slide?: SlideData }) {
           const res = await Promise.all(
             webpEntries.map(async (e) => ({
               width: e.width,
-              url: (await e.importer()).default,
+              url: await e.importer(),
             }))
           );
           if (!mounted.current) return;
           const map: Record<string, string> = {};
           res.forEach((r) => (map[r.width] = r.url));
           setWebpMap(map);
+
           if (!slide.image) {
             const largest = res
               .map((r) => [Number(r.width), r.url] as const)
@@ -260,13 +283,14 @@ export default function Slide({ slide }: { slide?: SlideData }) {
           const res = await Promise.all(
             jpgEntries.map(async (e) => ({
               width: e.width,
-              url: (await e.importer()).default,
+              url: await e.importer(),
             }))
           );
           if (!mounted.current) return;
           const map: Record<string, string> = {};
           res.forEach((r) => (map[r.width] = r.url));
           setJpgMap(map);
+
           if (!slide.image) {
             const largest = res
               .map((r) => [Number(r.width), r.url] as const)
@@ -276,13 +300,13 @@ export default function Slide({ slide }: { slide?: SlideData }) {
           }
         } else {
           if (singleWebpImp) {
-            const mod = await callImporter(singleWebpImp);
+            const url = await callImporter(singleWebpImp);
             if (!mounted.current) return;
-            if (mod && !slide.image) setPlaceholder(mod.default);
+            if (url && !slide.image) setPlaceholder(url);
           } else if (singleJpgImp) {
-            const mod = await callImporter(singleJpgImp);
+            const url = await callImporter(singleJpgImp);
             if (!mounted.current) return;
-            if (mod && !slide.image) setPlaceholder(mod.default);
+            if (url && !slide.image) setPlaceholder(url);
           } else {
             // eslint-disable-next-line no-console
             console.warn(
