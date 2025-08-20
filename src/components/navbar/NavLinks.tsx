@@ -5,8 +5,6 @@ export type LinkItem = { to: string; label: string };
 
 export const LINKS: LinkItem[] = [
   { to: "/", label: "Home" },
-  { to: "/about", label: "About" },
-  { to: "/issues", label: "Issues" },
   { to: "/contributors", label: "Contributors" },
   { to: "/services", label: "Services" },
   { to: "/login", label: "Login" },
