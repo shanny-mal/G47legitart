@@ -1,4 +1,3 @@
-/// <reference types="vite/client" />
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 
@@ -17,6 +16,14 @@ function buildSrcSet(map: Record<string, string>) {
     .sort((a, b) => a[0] - b[0])
     .map(([w, url]) => `${url} ${w}w`)
     .join(", ");
+}
+
+function pickSmallest(map: Record<string, string> | undefined) {
+  if (!map) return undefined;
+  const entries = Object.entries(map)
+    .map(([w, url]) => [Number(w), url] as const)
+    .sort((a, b) => a[0] - b[0]);
+  return entries.length ? entries[0][1] : undefined;
 }
 
 export default function Slide({ slide }: { slide?: SlideData }) {
@@ -80,10 +87,15 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     []
   );
 
-  // active maps & placeholder
+  // active maps & placeholder (candidate)
   const [webpMap, setWebpMap] = useState<Record<string, string>>({});
   const [jpgMap, setJpgMap] = useState<Record<string, string>>({});
-  const [placeholder, setPlaceholder] = useState<string | null>(
+  const [candidatePlaceholder, setCandidatePlaceholder] = useState<
+    string | null
+  >(() => slide?.image ?? null);
+
+  // currently displayed placeholder (keeps showing previous until new is ready)
+  const [displayPlaceholder, setDisplayPlaceholder] = useState<string | null>(
     () => slide?.image ?? null
   );
 
@@ -103,7 +115,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
   const mounted = useRef(true);
   const fadeTimeoutRef = useRef<number | null>(null);
 
-  // mount/unmount cleanup
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -115,17 +126,18 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     };
   }, []);
 
-  // Snapshot previous slide, then populate active maps for new slide
+  // Snapshot previous slide, then populate active maps for new slide.
+  // Important: we intentionally do NOT clear displayPlaceholder immediately so the previous image remains visible
   useEffect(() => {
     // snapshot current into prev for crossfade
     setPrevWebpMap(Object.keys(webpMap).length ? webpMap : null);
     setPrevJpgMap(Object.keys(jpgMap).length ? jpgMap : null);
-    setPrevPlaceholder(placeholder ?? null);
+    setPrevPlaceholder(displayPlaceholder ?? null);
 
-    // reset active state for the new slide
+    // reset active maps & candidate placeholder; keep displayPlaceholder until we have a new candidate preloaded
     setWebpMap({});
     setJpgMap({});
-    setPlaceholder(slide?.image ?? null);
+    setCandidatePlaceholder(slide?.image ?? null);
     setBgLoaded(false);
     setFgLoaded(false);
     setImgError(false);
@@ -159,27 +171,22 @@ export default function Slide({ slide }: { slide?: SlideData }) {
 
       if (Object.keys(wRes.wMap).length > 0) {
         setWebpMap(wRes.wMap);
+        // pick SMALL placeholder (fast) to show quickly
         if (!slide?.image) {
-          const largest = Object.entries(wRes.wMap)
-            .map(([w, url]) => [Number(w), url] as const)
-            .sort((a, b) => a[0] - b[0])
-            .pop();
-          if (largest) setPlaceholder(largest[1]);
+          const smallest = pickSmallest(wRes.wMap);
+          if (smallest) setCandidatePlaceholder(smallest);
         }
       } else if (Object.keys(combinedJpgMap).length > 0) {
         setJpgMap(combinedJpgMap);
         if (!slide?.image) {
-          const largest = Object.entries(combinedJpgMap)
-            .map(([w, url]) => [Number(w), url] as const)
-            .sort((a, b) => a[0] - b[0])
-            .pop();
-          if (largest) setPlaceholder(largest[1]);
+          const smallest = pickSmallest(combinedJpgMap);
+          if (smallest) setCandidatePlaceholder(smallest);
         }
       } else {
         const singleWebp = wRes.singleUrl;
         const singleJpg = jRes.singleUrl ?? jxRes.singleUrl;
-        if (!slide?.image && singleWebp) setPlaceholder(singleWebp);
-        else if (!slide?.image && singleJpg) setPlaceholder(singleJpg);
+        if (!slide?.image && singleWebp) setCandidatePlaceholder(singleWebp);
+        else if (!slide?.image && singleJpg) setCandidatePlaceholder(singleJpg);
       }
     } catch (err) {
       // will try lazy imports below
@@ -249,11 +256,10 @@ export default function Slide({ slide }: { slide?: SlideData }) {
           res.forEach((r) => (map[r.width] = r.url));
           setWebpMap(map);
           if (!slide?.image) {
-            const largest = res
+            const smallest = res
               .map((r) => [Number(r.width), r.url] as const)
-              .sort((a, b) => a[0] - b[0])
-              .pop();
-            if (largest) setPlaceholder(largest[1]);
+              .sort((a, b) => a[0] - b[0])[0];
+            if (smallest) setCandidatePlaceholder(smallest[1]);
           }
         } else if (jpgEntries.length > 0) {
           const res = await Promise.all(
@@ -267,21 +273,20 @@ export default function Slide({ slide }: { slide?: SlideData }) {
           res.forEach((r) => (map[r.width] = r.url));
           setJpgMap(map);
           if (!slide?.image) {
-            const largest = res
+            const smallest = res
               .map((r) => [Number(r.width), r.url] as const)
-              .sort((a, b) => a[0] - b[0])
-              .pop();
-            if (largest) setPlaceholder(largest[1]);
+              .sort((a, b) => a[0] - b[0])[0];
+            if (smallest) setCandidatePlaceholder(smallest[1]);
           }
         } else {
           if (singleWebpImp) {
             const url = await callImporter(singleWebpImp);
             if (!mounted.current) return;
-            if (url && !slide?.image) setPlaceholder(url);
+            if (url && !slide?.image) setCandidatePlaceholder(url);
           } else if (singleJpgImp) {
             const url = await callImporter(singleJpgImp);
             if (!mounted.current) return;
-            if (url && !slide?.image) setPlaceholder(url);
+            if (url && !slide?.image) setCandidatePlaceholder(url);
           } else {
             // eslint-disable-next-line no-console
             console.warn(`[Slide] no assets found for baseName="${base}".`);
@@ -305,38 +310,44 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     lazyJpeg,
   ]);
 
-  // derived flags & fallback
+  // derived flags & fallback (use candidatePlaceholder OR smallest from maps)
   const hasWebp = Object.keys(webpMap).length > 0;
   const hasJpg = Object.keys(jpgMap).length > 0;
-  const fallbackSrc =
-    placeholder ??
-    (hasWebp
-      ? Object.values(webpMap)[0]
-      : hasJpg
-      ? Object.values(jpgMap)[0]
-      : "");
-  const sizes = "(max-width: 768px) 100vw, (max-width:1200px) 100vw, 1200px";
 
-  // preload fallback to set bgLoaded
+  const smallestFromWebp = pickSmallest(webpMap);
+  const smallestFromJpg = pickSmallest(jpgMap);
+
+  const fallbackCandidate =
+    candidatePlaceholder ?? smallestFromWebp ?? smallestFromJpg ?? "";
+
+  const sizes = "(max-width: 480px) 100vw, (max-width: 1024px) 100vw, 1200px";
+
+  // preload fallbackCandidate so we can set displayPlaceholder once it's ready.
   useEffect(() => {
-    if (!fallbackSrc) {
+    if (!fallbackCandidate) {
       setImgError(true);
       setBgLoaded(false);
       setFgLoaded(false);
       return;
     }
+
     let cancelled = false;
     const pre = new Image();
-    pre.src = fallbackSrc;
+    pre.src = fallbackCandidate;
     pre.onload = () => {
       if (cancelled) return;
+      // set the currently-displayed placeholder to the preloaded candidate
+      setCandidatePlaceholder(fallbackCandidate);
+      setDisplayPlaceholder(fallbackCandidate); // swap displayed placeholder immediately once small image ready
       setImgError(false);
       setBgLoaded(true);
+      // mark fgLoaded true early so foreground displays quickly (image download will be cached and <img> onLoad fires quickly)
+      setFgLoaded(true);
     };
     pre.onerror = () => {
       if (cancelled) return;
       // eslint-disable-next-line no-console
-      console.warn(`[Slide] image failed to load: ${fallbackSrc}`);
+      console.warn(`[Slide] image failed to preload: ${fallbackCandidate}`);
       setImgError(true);
       setBgLoaded(false);
       setFgLoaded(false);
@@ -344,7 +355,7 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     return () => {
       cancelled = true;
     };
-  }, [fallbackSrc]);
+  }, [fallbackCandidate]);
 
   // Crossfade cleanup: when FG loads, remove prev after a short delay
   const prevExists = !!(
@@ -353,7 +364,7 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     (prevJpgMap && Object.keys(prevJpgMap).length)
   );
 
-  const clearPrevAfter = (ms = 640) => {
+  const clearPrevAfter = (ms = 420) => {
     if (fadeTimeoutRef.current) {
       clearTimeout(fadeTimeoutRef.current);
       fadeTimeoutRef.current = null;
@@ -368,22 +379,23 @@ export default function Slide({ slide }: { slide?: SlideData }) {
 
   useEffect(() => {
     if (fgLoaded && prevExists) {
-      clearPrevAfter(640);
+      clearPrevAfter(420);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fgLoaded]);
 
   // keep easing typed for TS (Framer Motion)
   const bgScaleTransition = {
-    duration: 1.2,
+    duration: 0.9,
     ease: [0.4, 0, 0.2, 1] as [number, number, number, number],
   };
   const fgFadeTransition = {
-    duration: 0.6,
+    duration: 0.36,
     ease: [0.0, 0.0, 0.2, 1] as [number, number, number, number],
   };
 
   // --- RENDER (no early returns; show fallback UI inside JSX) ---
+  const fallbackSrc = displayPlaceholder ?? "";
   const showFallbackUI = !fallbackSrc || imgError;
 
   return (
@@ -400,11 +412,11 @@ export default function Slide({ slide }: { slide?: SlideData }) {
           />
           <div className="absolute inset-0 z-10 flex items-center">
             <div className="max-w-3xl px-6">
-              <h3 className="text-2xl md:text-4xl lg:text-5xl font-serif text-white/95 tracking-tight drop-shadow-lg">
+              <h3 className="text-2xl md:text-3xl lg:text-4xl font-serif text-white/95 tracking-tight drop-shadow-lg">
                 {title}
               </h3>
               {subtitle && (
-                <p className="mt-3 text-sm md:text-lg text-white/85">
+                <p className="mt-2 text-sm md:text-base text-white/85">
                   {subtitle}
                 </p>
               )}
@@ -417,11 +429,11 @@ export default function Slide({ slide }: { slide?: SlideData }) {
           {prevExists && prevPlaceholder && (
             <motion.div
               className="absolute inset-0 z-5 will-change-transform"
-              initial={{ opacity: 1, scale: 1.02 }}
+              initial={{ opacity: 1, scale: 1.01 }}
               animate={
                 fgLoaded
                   ? { opacity: 0, scale: 1.0 }
-                  : { opacity: 1, scale: 1.02 }
+                  : { opacity: 1, scale: 1.01 }
               }
               transition={bgScaleTransition}
               aria-hidden
@@ -430,8 +442,8 @@ export default function Slide({ slide }: { slide?: SlideData }) {
                 className="w-full h-full bg-center bg-cover"
                 style={{
                   backgroundImage: `linear-gradient(rgba(6,7,12,0.45), rgba(6,7,12,0.45)), url("${prevPlaceholder}")`,
-                  filter: "blur(20px) saturate(0.9) contrast(0.98)",
-                  transform: "scale(1.02)",
+                  filter: "blur(18px) saturate(0.9) contrast(0.98)",
+                  transform: "scale(1.01)",
                 }}
               />
             </motion.div>
@@ -440,10 +452,10 @@ export default function Slide({ slide }: { slide?: SlideData }) {
           {/* active blurred background */}
           <motion.div
             className="absolute inset-0 z-0 will-change-transform"
-            initial={{ opacity: 0.85, scale: 1.04 }}
+            initial={{ opacity: 0.9, scale: 1.03 }}
             animate={{
-              opacity: bgLoaded ? 1 : 0.85,
-              scale: bgLoaded ? 1.0 : 1.04,
+              opacity: bgLoaded ? 1 : 0.9,
+              scale: bgLoaded ? 1.0 : 1.03,
             }}
             exit={{ opacity: 0 }}
             transition={bgScaleTransition}
@@ -453,8 +465,8 @@ export default function Slide({ slide }: { slide?: SlideData }) {
               className="w-full h-full bg-center bg-cover"
               style={{
                 backgroundImage: `linear-gradient(rgba(6,7,12,0.45), rgba(6,7,12,0.45)), url("${fallbackSrc}")`,
-                filter: "blur(22px) saturate(0.92) contrast(0.98)",
-                transform: "scale(1.04)",
+                filter: "blur(20px) saturate(0.92) contrast(0.98)",
+                transform: "scale(1.03)",
               }}
             />
           </motion.div>
@@ -494,7 +506,10 @@ export default function Slide({ slide }: { slide?: SlideData }) {
                   loading="lazy"
                   decoding="async"
                   sizes={sizes}
-                  style={{ objectPosition: "center", opacity: 1 }}
+                  style={{
+                    objectPosition: "center",
+                    maxHeight: "80vh",
+                  }}
                 />
               </picture>
             </motion.div>
@@ -538,16 +553,21 @@ export default function Slide({ slide }: { slide?: SlideData }) {
                 sizes={sizes}
                 style={{
                   objectPosition: "center",
-                  transition: "opacity 420ms ease, transform 420ms ease",
+                  transition:
+                    "opacity 320ms cubic-bezier(.2,0,.2,1), transform 320ms cubic-bezier(.2,0,.2,1)",
+                  maxHeight: "80vh", // prevents extremely tall images on mobile
                 }}
-                onLoad={() => setFgLoaded(true)}
+                onLoad={() => {
+                  // ensure we mark fgLoaded in case preload didn't already
+                  setFgLoaded(true);
+                }}
                 onError={() => setImgError(true)}
               />
             </picture>
           </motion.div>
 
           {/* overlay for consistent contrast */}
-          <div className="absolute inset-0 z-30 bg-gradient-to-b from-black/18 via-black/8 to-black/34 pointer-events-none" />
+          <div className="absolute inset-0 z-30 bg-gradient-to-b from-black/18 via-black/6 to-black/34 pointer-events-none" />
         </>
       )}
     </div>
