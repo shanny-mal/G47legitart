@@ -136,6 +136,14 @@ export default function DiscussionPage(): JSX.Element {
                     <li>Don't share personal data of others.</li>
                     <li>Keep conversation on-topic and constructive.</li>
                   </ul>
+                  <div className="mt-3">
+                    <a
+                      href="/community-rules"
+                      className="text-sm text-indigo-600 hover:underline"
+                    >
+                      Full community rules
+                    </a>
+                  </div>
                 </motion.div>
               )}
 

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import CommentItem, { type Comment } from "./CommentItem";
-import CommentForm from "./CommentForm";
 
 export default function CommentsList({
   discussionId,
@@ -14,7 +13,7 @@ export default function CommentsList({
   const [pageSize] = useState(initialPageSize);
   const [total, setTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshKey] = useState(0);
 
   const load = useCallback(
     async (p = 1) => {
@@ -52,16 +51,6 @@ export default function CommentsList({
   );
 
   // called when a new comment was posted — optimistic add or refresh
-  const handlePosted = useCallback((serverResult: any) => {
-    // if server returned created comment, push it to top
-    if (serverResult?.id) {
-      setComments((prev) => [serverResult as Comment, ...prev]);
-      setTotal((t) => (typeof t === "number" ? t + 1 : t));
-    } else {
-      // fallback: refresh from server
-      setRefreshKey((k) => k + 1);
-    }
-  }, []);
 
   return (
     <div className="space-y-6">
@@ -74,8 +63,7 @@ export default function CommentsList({
         </div>
       </div>
 
-      {/* Comment form */}
-      <CommentForm discussionId={discussionId} onPosted={handlePosted} />
+      
 
       {/* Comments list */}
       <div>
