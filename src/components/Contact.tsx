@@ -78,7 +78,7 @@ const ContactInfo: React.FC = () => (
           Editorial HQ — Kariba
         </div>
         <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
-          P.O. Box 1234, Kariba, Zimbabwe
+          2240 Batonga Kariba
         </div>
       </div>
     </div>
@@ -95,7 +95,7 @@ const ContactInfo: React.FC = () => (
           href="mailto:hello@karibamagazine.org"
           className="text-sm text-slate-600 dark:text-slate-400 hover:underline"
         >
-          hello@karibamagazine.org
+          thekaribamagazine@gmail.com
         </a>
       </div>
     </div>
@@ -109,7 +109,7 @@ const ContactInfo: React.FC = () => (
           Phone
         </div>
         <div className="text-sm text-slate-600 dark:text-slate-400">
-          +263 77 000 0000
+          +263776810028
         </div>
       </div>
     </div>
