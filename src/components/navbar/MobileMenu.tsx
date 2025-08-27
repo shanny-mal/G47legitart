@@ -1,15 +1,17 @@
 import React, { useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { LINKS } from "./NavLinks";
 import { menuVariants, linkItemVariants } from "./variants";
+import { useAuth } from "../../admin/AuthProvider"; // adjust path if needed
 
-const MobileMenu: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
-  isOpen,
-  onClose,
-}) => {
+const MobileMenu: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const reduceMotion = Boolean(useReducedMotion());
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const auth = useAuth();
+  const isAuthenticated = Boolean(auth?.isAuthenticated);
+  const user = auth?.user ?? null;
+  const navigate = useNavigate();
 
   // body scroll lock
   useEffect(() => {
@@ -44,9 +46,7 @@ const MobileMenu: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
     const handle = (e: KeyboardEvent) => {
       if (e.key !== "Tab") return;
       const focusables = Array.from(
-        el.querySelectorAll<HTMLElement>(
-          'a[href],button:not([disabled]),[tabindex]:not([tabindex="-1"])'
-        )
+        el.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),[tabindex]:not([tabindex="-1"])')
       ).filter(Boolean);
       if (focusables.length === 0) return;
       const first = focusables[0],
@@ -62,6 +62,17 @@ const MobileMenu: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
     document.addEventListener("keydown", handle);
     return () => document.removeEventListener("keydown", handle);
   }, [isOpen]);
+
+  const handleLogout = async () => {
+    try {
+      await auth.logout();
+    } catch {
+      // ignore
+    } finally {
+      onClose();
+      navigate("/login", { replace: true });
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -103,13 +114,41 @@ const MobileMenu: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
               </div>
 
               <div className="mt-6 pt-4 border-t border-karibaSand/80 dark:border-black/20">
-                <Link
-                  to="/subscribe"
-                  onClick={onClose}
-                  className="block w-full text-center px-4 py-3 rounded-full bg-gradient-to-r from-karibaTeal to-karibaCoral text-white font-semibold shadow-lg"
-                >
-                  Subscribe
-                </Link>
+                {!isAuthenticated ? (
+                  <>
+                    <Link
+                      to="/subscribe"
+                      onClick={onClose}
+                      className="block w-full text-center px-4 py-3 rounded-full bg-gradient-to-r from-karibaTeal to-karibaCoral text-white font-semibold shadow-lg"
+                    >
+                      Subscribe
+                    </Link>
+
+                    <Link
+                      to="/login"
+                      onClick={onClose}
+                      className="mt-3 block w-full text-center px-4 py-2 rounded-md border border-white/8 text-karibaNavy dark:text-karibaSand"
+                    >
+                      Sign in
+                    </Link>
+                  </>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="px-3 py-2 rounded-md bg-white/6 dark:bg-white/4">
+                      <div className="text-sm font-medium text-karibaNavy dark:text-karibaSand">
+                        {user?.username ?? user?.email ?? "User"}
+                      </div>
+                      {user?.is_staff && <div className="text-xs text-gray-600">Admin</div>}
+                    </div>
+
+                    <button
+                      onClick={handleLogout}
+                      className="w-full text-center px-4 py-3 rounded-full bg-red-600 text-white font-semibold shadow"
+                    >
+                      Sign out
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </motion.aside>
