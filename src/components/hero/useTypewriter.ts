@@ -1,13 +1,8 @@
-// src/components/hero/useTypewriter.ts
 import { useEffect, useRef, useState } from "react";
 
 type Options = { speed?: number; pauseBetween?: number; instant?: boolean };
 
-export default function useTypewriter(
-  title: string,
-  subtitle = "",
-  opts: Options = {}
-) {
+export default function useTypewriter(title: string, subtitle = "", opts: Options = {}) {
   const { speed = 40, pauseBetween = 300, instant = false } = opts;
   const [typedTitle, setTypedTitle] = useState("");
   const [typedSubtitle, setTypedSubtitle] = useState("");
@@ -33,10 +28,10 @@ export default function useTypewriter(
       };
     }
 
-    let titleIdx = 0;
-    let subIdx = 0;
     let titleTimer: number | undefined;
     let subTimer: number | undefined;
+    let titleIdx = 0;
+    let subIdx = 0;
 
     const typeTitle = () =>
       new Promise<void>((resolve) => {
@@ -70,9 +65,7 @@ export default function useTypewriter(
         setIsTyping(false);
         return;
       }
-      await new Promise(
-        (r) => (titleTimer = window.setTimeout(r, pauseBetween))
-      );
+      await new Promise((r) => (titleTimer = window.setTimeout(r, pauseBetween)));
       await typeSubtitle();
       if (!cancel.current && mounted.current) setIsTyping(false);
     })();
