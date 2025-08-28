@@ -8,7 +8,7 @@ export type SlideData = {
   subtitle?: string;
   baseName: string;
   alt?: string;
-  image?: string; // optional explicit public fallback
+  image?: string;
 };
 
 function buildSrcSet(map: Record<string, string>) {
@@ -27,13 +27,28 @@ function pickSmallest(map: Record<string, string> | undefined) {
   return entries.length ? entries[0][1] : undefined;
 }
 
+/** deterministic tiny gradient LQIP so the UI never flashes pure white/black */
+function gradientDataUri() {
+  const svg = `
+  <svg xmlns='http://www.w3.org/2000/svg' width='16' height='10' viewBox='0 0 16 10'>
+    <defs>
+      <linearGradient id='g' x1='0' x2='1' y1='0' y2='1'>
+        <stop offset='0%' stop-color='%23086' stop-opacity='1'/>
+        <stop offset='100%' stop-color='%23ff7a7a' stop-opacity='1'/>
+      </linearGradient>
+    </defs>
+    <rect width='100%' height='100%' fill='url(#g)' />
+  </svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
 export default function Slide({ slide }: { slide?: SlideData }) {
   const base = slide?.baseName ?? "__no_slide__";
   const title = slide?.title ?? "";
   const subtitle = slide?.subtitle ?? "";
   const alt = slide?.alt ?? slide?.title ?? "slide";
 
-  // eager maps
+  // eager imports (bundle-time)
   const eagerWebp = useMemo(
     () =>
       (import.meta.glob("../../assets/images/background/*.webp", {
@@ -62,7 +77,7 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     []
   );
 
-  // lazy maps
+  // lazy imports (deferred)
   const lazyWebp = useMemo(
     () =>
       (import.meta.glob("../../assets/images/background/*.webp", {
@@ -88,15 +103,19 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     []
   );
 
+  // active maps & placeholders
   const [webpMap, setWebpMap] = useState<Record<string, string>>({});
   const [jpgMap, setJpgMap] = useState<Record<string, string>>({});
-  const [candidatePlaceholder, setCandidatePlaceholder] = useState<string | null>(() => slide?.image ?? null);
-  const [displayPlaceholder, setDisplayPlaceholder] = useState<string | null>(() => slide?.image ?? null);
+  // candidate placeholder & displayed placeholder (displayPlaceholder is deterministic early)
+  const [candidatePlaceholder, setCandidatePlaceholder] = useState<string | null>(() => slide?.image ?? gradientDataUri());
+  const [displayPlaceholder, setDisplayPlaceholder] = useState<string | null>(() => slide?.image ?? gradientDataUri());
 
+  // previous snapshot for crossfade
   const [prevWebpMap, setPrevWebpMap] = useState<Record<string, string> | null>(null);
   const [prevJpgMap, setPrevJpgMap] = useState<Record<string, string> | null>(null);
   const [prevPlaceholder, setPrevPlaceholder] = useState<string | null>(null);
 
+  // load state flags
   const [bgLoaded, setBgLoaded] = useState(false);
   const [fgLoaded, setFgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -114,16 +133,17 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     };
   }, []);
 
+  // When slide changes, snapshot previous and load new resources.
   useEffect(() => {
-    // snapshot
     setPrevWebpMap(Object.keys(webpMap).length ? webpMap : null);
     setPrevJpgMap(Object.keys(jpgMap).length ? jpgMap : null);
     setPrevPlaceholder(displayPlaceholder ?? null);
 
-    // reset
     setWebpMap({});
     setJpgMap({});
-    setCandidatePlaceholder(slide?.image ?? null);
+    setCandidatePlaceholder(slide?.image ?? gradientDataUri());
+    // keep a deterministic displayed placeholder immediately so layout doesn't flash
+    setDisplayPlaceholder((p) => p ?? slide?.image ?? gradientDataUri());
     setBgLoaded(false);
     setFgLoaded(false);
     setImgError(false);
@@ -156,24 +176,35 @@ export default function Slide({ slide }: { slide?: SlideData }) {
         setWebpMap(wRes.wMap);
         if (!slide?.image) {
           const smallest = pickSmallest(wRes.wMap);
-          if (smallest) setCandidatePlaceholder(smallest);
+          if (smallest) {
+            setCandidatePlaceholder(smallest);
+            setDisplayPlaceholder((p) => p ?? smallest);
+          }
         }
       } else if (Object.keys(combinedJpg).length > 0) {
         setJpgMap(combinedJpg);
         if (!slide?.image) {
           const smallest = pickSmallest(combinedJpg);
-          if (smallest) setCandidatePlaceholder(smallest);
+          if (smallest) {
+            setCandidatePlaceholder(smallest);
+            setDisplayPlaceholder((p) => p ?? smallest);
+          }
         }
       } else {
         const singleWebp = wRes.singleUrl;
         const singleJpg = jRes.singleUrl ?? jxRes.singleUrl;
-        if (!slide?.image && singleWebp) setCandidatePlaceholder(singleWebp);
-        else if (!slide?.image && singleJpg) setCandidatePlaceholder(singleJpg);
+        if (!slide?.image && singleWebp) {
+          setCandidatePlaceholder(singleWebp);
+          setDisplayPlaceholder((p) => p ?? singleWebp);
+        } else if (!slide?.image && singleJpg) {
+          setCandidatePlaceholder(singleJpg);
+          setDisplayPlaceholder((p) => p ?? singleJpg);
+        }
       }
     } catch (err) {
-      // will try lazy imports below
+      // fallback to lazy imports below
       // eslint-disable-next-line no-console
-      console.warn("[Slide] eager lookup failed; will try lazy imports", err);
+      console.warn("[Slide] eager lookup failed; will try lazy import", err);
     }
 
     const callImporter = async (imp?: (() => Promise<string>) | null) => {
@@ -182,7 +213,7 @@ export default function Slide({ slide }: { slide?: SlideData }) {
         return await imp();
       } catch (err) {
         // eslint-disable-next-line no-console
-        console.warn("[Slide] lazy import failed for importer", err);
+        console.warn("[Slide] lazy import failed", err);
         return null;
       }
     };
@@ -222,7 +253,10 @@ export default function Slide({ slide }: { slide?: SlideData }) {
           setWebpMap(map);
           if (!slide?.image) {
             const smallest = res.map((r) => [Number(r.width), r.url] as const).sort((a, b) => a[0] - b[0])[0];
-            if (smallest) setCandidatePlaceholder(smallest[1]);
+            if (smallest) {
+              setCandidatePlaceholder(smallest[1]);
+              setDisplayPlaceholder((p) => p ?? smallest[1]);
+            }
           }
         } else if (jpgEntries.length > 0) {
           const res = await Promise.all(jpgEntries.map(async (e) => ({ width: e.width, url: await e.importer() })));
@@ -232,20 +266,29 @@ export default function Slide({ slide }: { slide?: SlideData }) {
           setJpgMap(map);
           if (!slide?.image) {
             const smallest = res.map((r) => [Number(r.width), r.url] as const).sort((a, b) => a[0] - b[0])[0];
-            if (smallest) setCandidatePlaceholder(smallest[1]);
+            if (smallest) {
+              setCandidatePlaceholder(smallest[1]);
+              setDisplayPlaceholder((p) => p ?? smallest[1]);
+            }
           }
         } else {
           if (singleWebpImp) {
             const url = await callImporter(singleWebpImp);
             if (!mounted.current) return;
-            if (url && !slide?.image) setCandidatePlaceholder(url);
+            if (url && !slide?.image) {
+              setCandidatePlaceholder(url);
+              setDisplayPlaceholder((p) => p ?? url);
+            }
           } else if (singleJpgImp) {
             const url = await callImporter(singleJpgImp);
             if (!mounted.current) return;
-            if (url && !slide?.image) setCandidatePlaceholder(url);
+            if (url && !slide?.image) {
+              setCandidatePlaceholder(url);
+              setDisplayPlaceholder((p) => p ?? url);
+            }
           } else {
             // eslint-disable-next-line no-console
-            console.warn(`[Slide] no assets found for baseName="${base}".`);
+            console.warn(`[Slide] no assets for baseName="${base}"`);
           }
         }
       } catch (err) {
@@ -266,15 +309,16 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     lazyJpeg,
   ]);
 
+  // derived flags & fallback
   const hasWebp = Object.keys(webpMap).length > 0;
   const hasJpg = Object.keys(jpgMap).length > 0;
   const smallestFromWebp = pickSmallest(webpMap);
   const smallestFromJpg = pickSmallest(jpgMap);
-  const fallbackCandidate = candidatePlaceholder ?? smallestFromWebp ?? smallestFromJpg ?? "";
+  const fallbackCandidate = displayPlaceholder ?? candidatePlaceholder ?? smallestFromWebp ?? smallestFromJpg ?? gradientDataUri();
 
-  // more realistic sizes hint for modern breakpoints
   const sizes = "(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 1400px";
 
+  // preload the chosen candidate so we only swap displayPlaceholder when ready
   useEffect(() => {
     if (!fallbackCandidate) {
       setImgError(true);
@@ -291,12 +335,12 @@ export default function Slide({ slide }: { slide?: SlideData }) {
       setDisplayPlaceholder(fallbackCandidate);
       setImgError(false);
       setBgLoaded(true);
-      setFgLoaded(true); // so FG appears immediately if cached
+      setFgLoaded(true);
     };
     pre.onerror = () => {
       if (cancelled) return;
       // eslint-disable-next-line no-console
-      console.warn(`[Slide] image failed to preload: ${fallbackCandidate}`);
+      console.warn(`[Slide] preload failed: ${fallbackCandidate}`);
       setImgError(true);
       setBgLoaded(false);
       setFgLoaded(false);
@@ -306,6 +350,7 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     };
   }, [fallbackCandidate]);
 
+  // clear previous after transition
   const prevExists = !!(prevPlaceholder || (prevWebpMap && Object.keys(prevWebpMap).length) || (prevJpgMap && Object.keys(prevJpgMap).length));
   const clearPrevAfter = (ms = 420) => {
     if (fadeTimeoutRef.current) {
@@ -327,135 +372,112 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fgLoaded]);
 
+  // transitions
   const bgScaleTransition = { duration: 0.9, ease: [0.4, 0, 0.2, 1] as [number, number, number, number] };
   const fgFadeTransition = { duration: 0.36, ease: [0.0, 0.0, 0.2, 1] as [number, number, number, number] };
 
-  const fallbackSrc = displayPlaceholder ?? "";
-  const showFallbackUI = !fallbackSrc || imgError;
-
-  // prefer CSS min-heights to avoid white flash / stretching
   const imgStyles: React.CSSProperties = {
     objectPosition: "center",
     transition: "opacity 320ms cubic-bezier(.2,0,.2,1), transform 320ms cubic-bezier(.2,0,.2,1)",
     backgroundColor: "transparent",
-    minHeight: "50vh",
+    minHeight: "100%",
   };
 
   return (
-    <div className="absolute inset-0 w-full h-full bg-black/60">
-      {showFallbackUI ? (
-        <>
+    <div className="absolute inset-0 w-full h-full">
+      {/* Accessibility: expose title/subtitle and image load errors to screen readers */}
+      <div className="sr-only" aria-live="polite">
+        {title}
+        {subtitle ? ` — ${subtitle}` : ""}
+        {imgError ? " — image failed to load" : ""}
+      </div>
+
+      {/* previous blurred background */}
+      {prevExists && prevPlaceholder && (
+        <motion.div
+          className="absolute inset-0 z-5 will-change-transform"
+          initial={{ opacity: 1, scale: 1.01 }}
+          animate={fgLoaded ? { opacity: 0, scale: 1.0 } : { opacity: 1, scale: 1.01 }}
+          transition={bgScaleTransition}
+          aria-hidden
+        >
           <div
-            className="absolute inset-0 z-0"
+            className="w-full h-full bg-center bg-cover"
             style={{
-              background: "linear-gradient(180deg, rgba(6,7,12,0.85) 0%, rgba(6,7,12,0.65) 40%, rgba(6,7,12,0.7) 100%)",
+              backgroundImage: `linear-gradient(rgba(6,7,12,0.45), rgba(6,7,12,0.45)), url("${prevPlaceholder}")`,
+              filter: "blur(18px) saturate(0.9) contrast(0.98)",
+              transform: "scale(1.01)",
             }}
           />
-          <div className="absolute inset-0 z-10 flex items-center">
-            <div className="max-w-3xl px-6">
-              <h3 className="text-2xl md:text-4xl lg:text-5xl font-serif text-white/95 tracking-tight drop-shadow-lg">
-                {title}
-              </h3>
-              {subtitle && <p className="mt-3 text-sm md:text-lg text-white/85">{subtitle}</p>}
-            </div>
-          </div>
-        </>
-      ) : (
-        <>
-          {prevExists && prevPlaceholder && (
-            <motion.div
-              className="absolute inset-0 z-5 will-change-transform"
-              initial={{ opacity: 1, scale: 1.01 }}
-              animate={fgLoaded ? { opacity: 0, scale: 1.0 } : { opacity: 1, scale: 1.01 }}
-              transition={bgScaleTransition}
-              aria-hidden
-            >
-              <div
-                className="w-full h-full bg-center bg-cover"
-                style={{
-                  backgroundImage: `linear-gradient(rgba(6,7,12,0.45), rgba(6,7,12,0.45)), url("${prevPlaceholder}")`,
-                  filter: "blur(18px) saturate(0.9) contrast(0.98)",
-                  transform: "scale(1.01)",
-                }}
-              />
-            </motion.div>
-          )}
-
-          <motion.div
-            className="absolute inset-0 z-0 will-change-transform"
-            initial={{ opacity: 0.9, scale: 1.03 }}
-            animate={{ opacity: bgLoaded ? 1 : 0.9, scale: bgLoaded ? 1.0 : 1.03 }}
-            exit={{ opacity: 0 }}
-            transition={bgScaleTransition}
-            aria-hidden
-          >
-            <div
-              className="w-full h-full bg-center bg-cover"
-              style={{
-                backgroundImage: `linear-gradient(rgba(6,7,12,0.45), rgba(6,7,12,0.45)), url("${fallbackSrc}")`,
-                filter: "blur(20px) saturate(0.92) contrast(0.98)",
-                transform: "scale(1.03)",
-              }}
-            />
-          </motion.div>
-
-          {prevExists && prevPlaceholder && (
-            <motion.div
-              className="absolute inset-0 z-10 will-change-transform"
-              initial={{ opacity: 1, scale: 1.0 }}
-              animate={fgLoaded ? { opacity: 0, scale: 1.01 } : { opacity: 1, scale: 1.0 }}
-              transition={fgFadeTransition}
-              aria-hidden
-            >
-              <picture>
-                {prevWebpMap && Object.keys(prevWebpMap).length > 0 && (
-                  <source type="image/webp" srcSet={buildSrcSet(prevWebpMap)} sizes={sizes} />
-                )}
-                {prevJpgMap && Object.keys(prevJpgMap).length > 0 && (
-                  <source type="image/jpeg" srcSet={buildSrcSet(prevJpgMap)} sizes={sizes} />
-                )}
-                <img
-                  src={prevPlaceholder}
-                  alt={alt}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                  decoding="async"
-                  sizes={sizes}
-                  style={{ ...imgStyles }}
-                />
-              </picture>
-            </motion.div>
-          )}
-
-          <motion.div
-            className="absolute inset-0 z-20 will-change-transform"
-            initial={{ opacity: 0, scale: 1.02 }}
-            animate={fgLoaded ? { opacity: 1, scale: 1.0 } : { opacity: 0, scale: 1.02 }}
-            exit={{ opacity: 0, scale: 1.02 }}
-            transition={fgFadeTransition}
-            aria-hidden={false}
-          >
-            <picture>
-              {hasWebp && <source type="image/webp" srcSet={buildSrcSet(webpMap)} sizes={sizes} />}
-              {hasJpg && <source type="image/jpeg" srcSet={buildSrcSet(jpgMap)} sizes={sizes} />}
-              <img
-                src={fallbackSrc}
-                alt={alt}
-                className="w-full h-full object-cover"
-                loading="eager"
-                decoding="async"
-                fetchPriority="high"
-                sizes={sizes}
-                style={imgStyles}
-                onLoad={() => setFgLoaded(true)}
-                onError={() => setImgError(true)}
-              />
-            </picture>
-          </motion.div>
-
-          <div className="absolute inset-0 z-30 bg-gradient-to-b from-black/18 via-black/6 to-black/34 pointer-events-none" />
-        </>
+        </motion.div>
       )}
+
+      {/* active blurred background */}
+      <motion.div
+        className="absolute inset-0 z-0 will-change-transform"
+        initial={{ opacity: 0.95, scale: 1.03 }}
+        animate={{ opacity: bgLoaded ? 1 : 0.95, scale: bgLoaded ? 1.0 : 1.03 }}
+        exit={{ opacity: 0 }}
+        transition={bgScaleTransition}
+        aria-hidden
+      >
+        <div
+          className="w-full h-full bg-center bg-cover"
+          style={{
+            backgroundImage: fallbackCandidate ? `linear-gradient(rgba(6,7,12,0.45), rgba(6,7,12,0.45)), url("${fallbackCandidate}")` : undefined,
+            backgroundColor: fallbackCandidate ? undefined : "rgba(6,7,12,0.6)",
+            filter: "blur(18px) saturate(0.92) contrast(0.98)",
+            transform: "scale(1.03)",
+          }}
+        />
+      </motion.div>
+
+      {/* previous crisp foreground */}
+      {prevExists && prevPlaceholder && (
+        <motion.div
+          className="absolute inset-0 z-10 will-change-transform"
+          initial={{ opacity: 1, scale: 1.0 }}
+          animate={fgLoaded ? { opacity: 0, scale: 1.01 } : { opacity: 1, scale: 1.0 }}
+          transition={fgFadeTransition}
+          aria-hidden
+        >
+          <picture>
+            {prevWebpMap && Object.keys(prevWebpMap).length > 0 && <source type="image/webp" srcSet={buildSrcSet(prevWebpMap)} sizes={sizes} />}
+            {prevJpgMap && Object.keys(prevJpgMap).length > 0 && <source type="image/jpeg" srcSet={buildSrcSet(prevJpgMap)} sizes={sizes} />}
+            <img src={prevPlaceholder} alt={alt} className="w-full h-full object-cover" loading="lazy" decoding="async" sizes={sizes} style={imgStyles} />
+          </picture>
+        </motion.div>
+      )}
+
+      {/* current crisp foreground */}
+      <motion.div
+        className="absolute inset-0 z-20 will-change-transform"
+        initial={{ opacity: 0, scale: 1.02 }}
+        animate={fgLoaded ? { opacity: 1, scale: 1.0 } : { opacity: 0, scale: 1.02 }}
+        exit={{ opacity: 0, scale: 1.02 }}
+        transition={fgFadeTransition}
+        aria-hidden={false}
+      >
+        <picture>
+          {hasWebp && <source type="image/webp" srcSet={buildSrcSet(webpMap)} sizes={sizes} />}
+          {hasJpg && <source type="image/jpeg" srcSet={buildSrcSet(jpgMap)} sizes={sizes} />}
+          <img
+            src={fallbackCandidate}
+            alt={alt}
+            className="w-full h-full object-cover"
+            loading="eager"
+            decoding="async"
+            fetchPriority="high"
+            sizes={sizes}
+            style={imgStyles}
+            onLoad={() => setFgLoaded(true)}
+            onError={() => setImgError(true)}
+          />
+        </picture>
+      </motion.div>
+
+      {/* overlay for consistent contrast */}
+      <div className="absolute inset-0 z-30 bg-gradient-to-b from-black/18 via-black/6 to-black/34 pointer-events-none" />
     </div>
   );
 }

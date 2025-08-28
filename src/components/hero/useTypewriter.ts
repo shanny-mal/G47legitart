@@ -1,37 +1,60 @@
+// src/components/hero/useTypewriter.ts
 import { useEffect, useRef, useState } from "react";
 
 type Options = { speed?: number; pauseBetween?: number; instant?: boolean };
 
+/**
+ * Resilient typewriter hook.
+ * - Remembers last-typed title/subtitle pair to avoid double-typing when component mounts twice quickly.
+ * - Cleans up timers reliably.
+ */
 export default function useTypewriter(
   title: string,
   subtitle = "",
   opts: Options = {}
 ) {
-  // adapt speed for viewport: mobile -> slightly faster typing
-  const isClient = typeof window !== "undefined";
-  const viewportWidth = isClient ? window.innerWidth : 1200;
-  const autoSpeed = viewportWidth < 640 ? 28 : 34;
-
-  const { speed = autoSpeed, pauseBetween = 300, instant = false } = opts;
+  const { speed = 40, pauseBetween = 300, instant = false } = opts;
   const [typedTitle, setTypedTitle] = useState("");
   const [typedSubtitle, setTypedSubtitle] = useState("");
   const [isTyping, setIsTyping] = useState(false);
 
+  // cancel / mounted refs for cleanup
   const mounted = useRef(true);
   const cancel = useRef(false);
+  // remember last fully-typed content to avoid re-typing the same thing immediately
+  const lastTypedFor = useRef<{ title: string; subtitle: string } | null>(null);
 
   useEffect(() => {
     mounted.current = true;
     cancel.current = false;
+
+    // If the same text was already fully typed recently, don't replay the animation.
+    if (
+      !instant &&
+      lastTypedFor.current &&
+      lastTypedFor.current.title === title &&
+      lastTypedFor.current.subtitle === subtitle
+    ) {
+      // ensure UI shows full strings immediately
+      setTypedTitle(title);
+      setTypedSubtitle(subtitle);
+      setIsTyping(false);
+      return () => {
+        mounted.current = false;
+        cancel.current = true;
+      };
+    }
+
+    // reset
     setTypedTitle("");
     setTypedSubtitle("");
     setIsTyping(true);
 
     if (instant) {
-      // show everything immediately if reduced motion or instant asked
       setTypedTitle(title);
       setTypedSubtitle(subtitle);
       setIsTyping(false);
+      lastTypedFor.current = { title, subtitle };
       return () => {
         mounted.current = false;
         cancel.current = true;
@@ -43,60 +66,52 @@ export default function useTypewriter(
     let titleTimer: number | undefined;
     let subTimer: number | undefined;
 
-    const stepTitle = () => {
-      if (cancel.current || !mounted.current) return;
-      titleIdx++;
-      setTypedTitle(title.slice(0, titleIdx));
-      if (titleIdx < title.length) {
-        titleTimer = window.setTimeout(stepTitle, speed);
-      } else {
-        titleTimer = undefined;
-      }
-    };
+    const typeTitle = () =>
+      new Promise<void>((resolve) => {
+        const step = () => {
+          if (cancel.current || !mounted.current) return resolve();
+          titleIdx++;
+          setTypedTitle(title.slice(0, titleIdx));
+          if (titleIdx >= title.length) return resolve();
+          titleTimer = window.setTimeout(step, speed);
+        };
+        if (title.length === 0) return resolve();
+        step();
+      });
 
-    const stepSubtitle = () => {
-      if (cancel.current || !mounted.current) return;
-      subIdx++;
-      setTypedSubtitle(subtitle.slice(0, subIdx));
-      if (subIdx < subtitle.length) {
-        subTimer = window.setTimeout(stepSubtitle, speed);
-      } else {
-        subTimer = undefined;
-      }
-    };
+    const typeSubtitle = () =>
+      new Promise<void>((resolve) => {
+        const step = () => {
+          if (cancel.current || !mounted.current) return resolve();
+          subIdx++;
+          setTypedSubtitle(subtitle.slice(0, subIdx));
+          if (subIdx >= subtitle.length) return resolve();
+          subTimer = window.setTimeout(step, speed);
+        };
+        if (!subtitle) return resolve();
+        step();
+      });
 
     (async () => {
-      // type title
-      if (title.length === 0) {
-        // move on
-      } else {
-        stepTitle();
-        // wait until title finished
-        while (!cancel.current && mounted.current && titleIdx < title.length) {
-          // poll - but avoid busy loop: wait a bit
-          // eslint-disable-next-line no-await-in-loop
-          await new Promise((r) => (titleTimer ? setTimeout(r, speed) : setTimeout(r, 20)));
+      try {
+        await typeTitle();
+        if (cancel.current || !mounted.current) {
+          setIsTyping(false);
+          return;
         }
-      }
-
-      if (cancel.current || !mounted.current) {
+        // pause before subtitle
+        await new Promise((r) => {
+          titleTimer = window.setTimeout(r, pauseBetween);
+        });
+        await typeSubtitle();
+        if (!cancel.current && mounted.current) {
+          setIsTyping(false);
+          // mark this pair as typed so brief remounts won't replay
+          lastTypedFor.current = { title, subtitle };
+        }
+      } catch {
         setIsTyping(false);
-        return;
       }
-
-      // pause between title and subtitle
-      await new Promise((r) => setTimeout(r, pauseBetween));
-
-      // type subtitle
-      if (subtitle.length > 0) {
-        stepSubtitle();
-        while (!cancel.current && mounted.current && subIdx < subtitle.length) {
-          // eslint-disable-next-line no-await-in-loop
-          await new Promise((r) => (subTimer ? setTimeout(r, speed) : setTimeout(r, 20)));
-        }
-      }
-
-      if (!cancel.current && mounted.current) setIsTyping(false);
     })();
 
     return () => {
