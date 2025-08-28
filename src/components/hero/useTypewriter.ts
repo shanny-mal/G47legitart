@@ -2,8 +2,17 @@ import { useEffect, useRef, useState } from "react";
 
 type Options = { speed?: number; pauseBetween?: number; instant?: boolean };
 
-export default function useTypewriter(title: string, subtitle = "", opts: Options = {}) {
-  const { speed = 40, pauseBetween = 300, instant = false } = opts;
+export default function useTypewriter(
+  title: string,
+  subtitle = "",
+  opts: Options = {}
+) {
+  // adapt speed for viewport: mobile -> slightly faster typing
+  const isClient = typeof window !== "undefined";
+  const viewportWidth = isClient ? window.innerWidth : 1200;
+  const autoSpeed = viewportWidth < 640 ? 28 : 34;
+
+  const { speed = autoSpeed, pauseBetween = 300, instant = false } = opts;
   const [typedTitle, setTypedTitle] = useState("");
   const [typedSubtitle, setTypedSubtitle] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -19,6 +28,7 @@ export default function useTypewriter(title: string, subtitle = "", opts: Option
     setIsTyping(true);
 
     if (instant) {
+      // show everything immediately if reduced motion or instant asked
       setTypedTitle(title);
       setTypedSubtitle(subtitle);
       setIsTyping(false);
@@ -28,45 +38,64 @@ export default function useTypewriter(title: string, subtitle = "", opts: Option
       };
     }
 
+    let titleIdx = 0;
+    let subIdx = 0;
     let titleTimer: number | undefined;
     let subTimer: number | undefined;
 
-    const typeTitle = () =>
-      new Promise<void>((resolve) => {
-        let idx = 0;
-        const step = () => {
-          if (cancel.current || !mounted.current) return resolve();
-          idx++;
-          setTypedTitle(title.slice(0, idx));
-          if (idx >= title.length) return resolve();
-          titleTimer = window.setTimeout(step, speed);
-        };
-        if (!title) return resolve();
-        step();
-      });
+    const stepTitle = () => {
+      if (cancel.current || !mounted.current) return;
+      titleIdx++;
+      setTypedTitle(title.slice(0, titleIdx));
+      if (titleIdx < title.length) {
+        titleTimer = window.setTimeout(stepTitle, speed);
+      } else {
+        titleTimer = undefined;
+      }
+    };
 
-    const typeSubtitle = () =>
-      new Promise<void>((resolve) => {
-        let idx = 0;
-        const step = () => {
-          if (cancel.current || !mounted.current) return resolve();
-          idx++;
-          setTypedSubtitle(subtitle.slice(0, idx));
-          if (idx >= subtitle.length) return resolve();
-          subTimer = window.setTimeout(step, speed);
-        };
-        if (!subtitle) return resolve();
-        step();
-      });
+    const stepSubtitle = () => {
+      if (cancel.current || !mounted.current) return;
+      subIdx++;
+      setTypedSubtitle(subtitle.slice(0, subIdx));
+      if (subIdx < subtitle.length) {
+        subTimer = window.setTimeout(stepSubtitle, speed);
+      } else {
+        subTimer = undefined;
+      }
+    };
 
     (async () => {
-      await typeTitle();
+      // type title
+      if (title.length === 0) {
+        // move on
+      } else {
+        stepTitle();
+        // wait until title finished
+        while (!cancel.current && mounted.current && titleIdx < title.length) {
+          // poll - but avoid busy loop: wait a bit
+          // eslint-disable-next-line no-await-in-loop
+          await new Promise((r) => (titleTimer ? setTimeout(r, speed) : setTimeout(r, 20)));
+        }
+      }
+
       if (cancel.current || !mounted.current) {
         setIsTyping(false);
         return;
       }
-      await new Promise((r) => (titleTimer = window.setTimeout(r, pauseBetween)));
-      await typeSubtitle();
+
+      // pause between title and subtitle
+      await new Promise((r) => setTimeout(r, pauseBetween));
+
+      // type subtitle
+      if (subtitle.length > 0) {
+        stepSubtitle();
+        while (!cancel.current && mounted.current && subIdx < subtitle.length) {
+          // eslint-disable-next-line no-await-in-loop
+          await new Promise((r) => (subTimer ? setTimeout(r, speed) : setTimeout(r, 20)));
+        }
+      }
+
       if (!cancel.current && mounted.current) setIsTyping(false);
     })();
 

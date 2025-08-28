@@ -41,7 +41,7 @@ export default function HeroSlider(): React.ReactElement {
   const { typedTitle, typedSubtitle, isTyping } = useTypewriter(
     slides[index].title,
     slides[index].subtitle ?? "",
-    { speed: 34, pauseBetween: 240, instant: prefersReducedMotion }
+    { /* speed auto-detected inside hook */ pauseBetween: 220, instant: prefersReducedMotion }
   );
 
   const noteUserInteraction = useCallback(() => {
@@ -67,7 +67,7 @@ export default function HeroSlider(): React.ReactElement {
     setIndex(() => Math.max(0, Math.min(i, slides.length - 1)));
   }, [noteUserInteraction, slides.length]);
 
-  // controlled autoplay: schedule next slide only when conditions met and when typing finished
+  // controlled autoplay
   useEffect(() => {
     if (timerRef.current) {
       window.clearTimeout(timerRef.current);
@@ -102,29 +102,96 @@ export default function HeroSlider(): React.ReactElement {
     return () => window.removeEventListener("keydown", onKey);
   }, [prev, next]);
 
-  // swipe
+  // touch/drag handling (more tolerant on mobile)
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    let touchStartX: number | null = null;
-    const onTouchStart = (ev: TouchEvent) => (touchStartX = ev.touches?.[0]?.clientX ?? null);
-    const onTouchEnd = (ev: TouchEvent) => {
-      if (touchStartX == null) return;
-      const dx = (ev.changedTouches?.[0]?.clientX ?? 0) - touchStartX;
-      const threshold = 50;
-      if (dx > threshold) prev();
-      else if (dx < -threshold) next();
-      touchStartX = null;
-    };
-    el.addEventListener("touchstart", onTouchStart, { passive: true });
-    el.addEventListener("touchend", onTouchEnd);
-    return () => {
-      el.removeEventListener("touchstart", onTouchStart);
-      el.removeEventListener("touchend", onTouchEnd);
-    };
-  }, [prev, next]);
 
-  // preload candidate for current slide (helps avoid flash)
+    let startX: number | null = null;
+    let startY: number | null = null;
+    let moved = false;
+    const threshold = (typeof window !== "undefined" && window.innerWidth < 640) ? 30 : 50;
+
+    const onStart = (ev: TouchEvent) => {
+      const t = ev.touches?.[0];
+      if (!t) return;
+      startX = t.clientX;
+      startY = t.clientY;
+      moved = false;
+      noteUserInteraction();
+    };
+
+    const onMove = (ev: TouchEvent) => {
+      if (startX == null || startY == null) return;
+      const t = ev.touches?.[0];
+      if (!t) return;
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      // if vertical movement is bigger, bail (let page scroll)
+      if (!moved && Math.abs(dy) > Math.abs(dx)) {
+        startX = null;
+        startY = null;
+        return;
+      }
+      if (Math.abs(dx) > threshold) {
+        moved = true;
+      }
+    };
+
+    const onEnd = (ev: TouchEvent) => {
+      if (startX == null) return;
+      const endX = ev.changedTouches?.[0]?.clientX ?? startX;
+      const dx = endX - startX;
+      if (Math.abs(dx) > threshold) {
+        if (dx > 0) prev();
+        else next();
+      }
+      startX = null;
+      startY = null;
+      moved = false;
+    };
+
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchmove", onMove, { passive: true });
+    el.addEventListener("touchend", onEnd);
+
+    // pointer support for desktop dragging
+    let pointerStartX: number | null = null;
+    let pointerDown = false;
+    const onPointerDown = (ev: PointerEvent) => {
+      if (ev.pointerType === "touch") return; // handled above
+      pointerDown = true;
+      pointerStartX = ev.clientX;
+      noteUserInteraction();
+    };
+    const onPointerUp = (ev: PointerEvent) => {
+      if (!pointerDown || pointerStartX == null) {
+        pointerDown = false;
+        pointerStartX = null;
+        return;
+      }
+      const dx = ev.clientX - pointerStartX;
+      if (Math.abs(dx) > 80) {
+        if (dx > 0) prev();
+        else next();
+      }
+      pointerDown = false;
+      pointerStartX = null;
+    };
+
+    el.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointerup", onPointerUp);
+
+    return () => {
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchmove", onMove);
+      el.removeEventListener("touchend", onEnd);
+      el.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+  }, [next, prev, noteUserInteraction]);
+
+  // preload candidate for current slide (keeps current logic, defensive)
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -138,6 +205,8 @@ export default function HeroSlider(): React.ReactElement {
       link.as = "image";
       link.href = href;
       document.head.appendChild(link);
+      // try also to set importance (best-effort)
+      (link as any).importance = "high";
       return () => {
         if (link.parentNode) link.parentNode.removeChild(link);
       };
@@ -151,7 +220,7 @@ export default function HeroSlider(): React.ReactElement {
   return (
     <section
       ref={containerRef as React.RefObject<HTMLElement>}
-      className="relative w-full h-[60vh] md:h-[75vh] lg:h-[85vh] overflow-hidden select-none bg-black"
+      className="relative w-full h-[50vh] sm:h-[60vh] md:h-[75vh] lg:h-[85vh] overflow-hidden select-none bg-black"
       onMouseEnter={() => { setHoverPause(true); noteUserInteraction(); }}
       onMouseLeave={() => setHoverPause(false)}
       onFocus={() => { setHoverPause(true); noteUserInteraction(); }}
@@ -162,9 +231,9 @@ export default function HeroSlider(): React.ReactElement {
         {activeSlide && (
           <motion.div
             key={activeSlide.id}
-            initial={{ opacity: 0, y: 6 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
+            exit={{ opacity: 0, y: -8 }}
             transition={{ duration: reduce ? 0 : 0.6, ease: "easeInOut" }}
             className="absolute inset-0 z-10"
             aria-hidden={false}
@@ -174,23 +243,26 @@ export default function HeroSlider(): React.ReactElement {
         )}
       </AnimatePresence>
 
-      <div aria-hidden className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-black/10 to-black/25 mix-blend-multiply" />
+      <div aria-hidden className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-black/10 to-black/30 mix-blend-multiply" />
 
       {/* content */}
       <div className="relative z-20 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center">
         <div className="max-w-3xl">
           <div className="sr-only" aria-live="polite">{activeSlide?.title}: {activeSlide?.subtitle}</div>
+
           <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-serif text-white drop-shadow-[0_10px_18px_rgba(0,0,0,0.55)] leading-tight">
             <span aria-hidden>{typedTitle}</span>
             <span className="sr-only">{activeSlide?.title}</span>
-            {!reduce && <span className="inline-block ml-1 animate-pulse text-white">▌</span>}
+            {!reduce && isTyping && (
+              <span className="inline-block ml-1 animate-pulse text-white">▌</span>
+            )}
           </h2>
 
           <motion.p
             key={index + "-subtitle"}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: reduce ? 0 : 0.36, delay: isTyping ? 0.18 : 0 }}
+            transition={{ duration: reduce ? 0 : 0.36, delay: isTyping ? 0.12 : 0 }}
             className="mt-3 text-sm sm:text-base md:text-lg text-white/90 min-h-[1.5rem]"
           >
             {typedSubtitle}

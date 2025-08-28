@@ -27,17 +27,13 @@ function pickSmallest(map: Record<string, string> | undefined) {
   return entries.length ? entries[0][1] : undefined;
 }
 
-/**
- * Slide component: always renders a dark gradient base so white flashes can't appear.
- * Uses eager/lazy import maps via import.meta.glob with query '?url'.
- */
 export default function Slide({ slide }: { slide?: SlideData }) {
   const base = slide?.baseName ?? "__no_slide__";
   const title = slide?.title ?? "";
   const subtitle = slide?.subtitle ?? "";
   const alt = slide?.alt ?? slide?.title ?? "slide";
 
-  // eager maps (eager imports - bundle build time)
+  // eager maps
   const eagerWebp = useMemo(
     () =>
       (import.meta.glob("../../assets/images/background/*.webp", {
@@ -66,7 +62,7 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     []
   );
 
-  // lazy maps (deferred import, returns string URL)
+  // lazy maps
   const lazyWebp = useMemo(
     () =>
       (import.meta.glob("../../assets/images/background/*.webp", {
@@ -92,24 +88,15 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     []
   );
 
-  // active maps & placeholders
   const [webpMap, setWebpMap] = useState<Record<string, string>>({});
   const [jpgMap, setJpgMap] = useState<Record<string, string>>({});
-  // candidate: smallest fast preview url or provided slide.image
-  const [candidatePlaceholder, setCandidatePlaceholder] = useState<string | null>(
-    () => slide?.image ?? null
-  );
-  // displayed placeholder (keeps previous displayed until new candidate is preloaded)
-  const [displayPlaceholder, setDisplayPlaceholder] = useState<string | null>(
-    () => slide?.image ?? null
-  );
+  const [candidatePlaceholder, setCandidatePlaceholder] = useState<string | null>(() => slide?.image ?? null);
+  const [displayPlaceholder, setDisplayPlaceholder] = useState<string | null>(() => slide?.image ?? null);
 
-  // snapshot previous state for crossfade
   const [prevWebpMap, setPrevWebpMap] = useState<Record<string, string> | null>(null);
   const [prevJpgMap, setPrevJpgMap] = useState<Record<string, string> | null>(null);
   const [prevPlaceholder, setPrevPlaceholder] = useState<string | null>(null);
 
-  // load states
   const [bgLoaded, setBgLoaded] = useState(false);
   const [fgLoaded, setFgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -127,14 +114,13 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     };
   }, []);
 
-  // When slide changes, snapshot previous and start loading new maps/candidate.
   useEffect(() => {
-    // snapshot for crossfade
+    // snapshot
     setPrevWebpMap(Object.keys(webpMap).length ? webpMap : null);
     setPrevJpgMap(Object.keys(jpgMap).length ? jpgMap : null);
     setPrevPlaceholder(displayPlaceholder ?? null);
 
-    // reset for new slide
+    // reset
     setWebpMap({});
     setJpgMap({});
     setCandidatePlaceholder(slide?.image ?? null);
@@ -147,7 +133,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
       fadeTimeoutRef.current = null;
     }
 
-    // helper to process eager maps
     const processEager = (files: Record<string, string>, ext: string) => {
       const wMap: Record<string, string> = {};
       Object.keys(files).forEach((k) => {
@@ -186,19 +171,18 @@ export default function Slide({ slide }: { slide?: SlideData }) {
         else if (!slide?.image && singleJpg) setCandidatePlaceholder(singleJpg);
       }
     } catch (err) {
-      // fallback to lazy imports below
+      // will try lazy imports below
       // eslint-disable-next-line no-console
-      console.warn("[Slide] eager lookup failed; will try lazy import", err);
+      console.warn("[Slide] eager lookup failed; will try lazy imports", err);
     }
 
-    // lazy importer logic
     const callImporter = async (imp?: (() => Promise<string>) | null) => {
       if (!imp) return null;
       try {
         return await imp();
       } catch (err) {
         // eslint-disable-next-line no-console
-        console.warn("[Slide] lazy import failed", err);
+        console.warn("[Slide] lazy import failed for importer", err);
         return null;
       }
     };
@@ -231,31 +215,23 @@ export default function Slide({ slide }: { slide?: SlideData }) {
         inspectLazy(lazyJpeg, "jpeg");
 
         if (webpEntries.length > 0) {
-          const res = await Promise.all(
-            webpEntries.map(async (e) => ({ width: e.width, url: await e.importer() }))
-          );
+          const res = await Promise.all(webpEntries.map(async (e) => ({ width: e.width, url: await e.importer() })));
           if (!mounted.current) return;
           const map: Record<string, string> = {};
           res.forEach((r) => (map[r.width] = r.url));
           setWebpMap(map);
           if (!slide?.image) {
-            const smallest = res
-              .map((r) => [Number(r.width), r.url] as const)
-              .sort((a, b) => a[0] - b[0])[0];
+            const smallest = res.map((r) => [Number(r.width), r.url] as const).sort((a, b) => a[0] - b[0])[0];
             if (smallest) setCandidatePlaceholder(smallest[1]);
           }
         } else if (jpgEntries.length > 0) {
-          const res = await Promise.all(
-            jpgEntries.map(async (e) => ({ width: e.width, url: await e.importer() }))
-          );
+          const res = await Promise.all(jpgEntries.map(async (e) => ({ width: e.width, url: await e.importer() })));
           if (!mounted.current) return;
           const map: Record<string, string> = {};
           res.forEach((r) => (map[r.width] = r.url));
           setJpgMap(map);
           if (!slide?.image) {
-            const smallest = res
-              .map((r) => [Number(r.width), r.url] as const)
-              .sort((a, b) => a[0] - b[0])[0];
+            const smallest = res.map((r) => [Number(r.width), r.url] as const).sort((a, b) => a[0] - b[0])[0];
             if (smallest) setCandidatePlaceholder(smallest[1]);
           }
         } else {
@@ -269,7 +245,7 @@ export default function Slide({ slide }: { slide?: SlideData }) {
             if (url && !slide?.image) setCandidatePlaceholder(url);
           } else {
             // eslint-disable-next-line no-console
-            console.warn(`[Slide] no assets for baseName="${base}"`);
+            console.warn(`[Slide] no assets found for baseName="${base}".`);
           }
         }
       } catch (err) {
@@ -290,16 +266,15 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     lazyJpeg,
   ]);
 
-  // derived
   const hasWebp = Object.keys(webpMap).length > 0;
   const hasJpg = Object.keys(jpgMap).length > 0;
   const smallestFromWebp = pickSmallest(webpMap);
   const smallestFromJpg = pickSmallest(jpgMap);
   const fallbackCandidate = candidatePlaceholder ?? smallestFromWebp ?? smallestFromJpg ?? "";
 
-  const sizes = "(max-width: 480px) 100vw, (max-width: 1024px) 100vw, 1200px";
+  // more realistic sizes hint for modern breakpoints
+  const sizes = "(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 1400px";
 
-  // preload fallbackCandidate and set displayed placeholder only when it's ready.
   useEffect(() => {
     if (!fallbackCandidate) {
       setImgError(true);
@@ -307,24 +282,21 @@ export default function Slide({ slide }: { slide?: SlideData }) {
       setFgLoaded(false);
       return;
     }
-
     let cancelled = false;
     const pre = new Image();
     pre.src = fallbackCandidate;
     pre.onload = () => {
       if (cancelled) return;
-      // swap displayed placeholder to preloaded candidate
       setCandidatePlaceholder(fallbackCandidate);
       setDisplayPlaceholder(fallbackCandidate);
       setImgError(false);
       setBgLoaded(true);
-      // set fgLoaded true early so the foreground shows quickly
-      setFgLoaded(true);
+      setFgLoaded(true); // so FG appears immediately if cached
     };
     pre.onerror = () => {
       if (cancelled) return;
       // eslint-disable-next-line no-console
-      console.warn(`[Slide] preload failed: ${fallbackCandidate}`);
+      console.warn(`[Slide] image failed to preload: ${fallbackCandidate}`);
       setImgError(true);
       setBgLoaded(false);
       setFgLoaded(false);
@@ -334,7 +306,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     };
   }, [fallbackCandidate]);
 
-  // When fgLoaded is true, clear the previous preview after a short delay.
   const prevExists = !!(prevPlaceholder || (prevWebpMap && Object.keys(prevWebpMap).length) || (prevJpgMap && Object.keys(prevJpgMap).length));
   const clearPrevAfter = (ms = 420) => {
     if (fadeTimeoutRef.current) {
@@ -356,18 +327,22 @@ export default function Slide({ slide }: { slide?: SlideData }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fgLoaded]);
 
-  // transitions
   const bgScaleTransition = { duration: 0.9, ease: [0.4, 0, 0.2, 1] as [number, number, number, number] };
   const fgFadeTransition = { duration: 0.36, ease: [0.0, 0.0, 0.2, 1] as [number, number, number, number] };
 
-  // final fallback src and showFallback flag
   const fallbackSrc = displayPlaceholder ?? "";
   const showFallbackUI = !fallbackSrc || imgError;
 
-  // --- Render ---
+  // prefer CSS min-heights to avoid white flash / stretching
+  const imgStyles: React.CSSProperties = {
+    objectPosition: "center",
+    transition: "opacity 320ms cubic-bezier(.2,0,.2,1), transform 320ms cubic-bezier(.2,0,.2,1)",
+    backgroundColor: "transparent",
+    minHeight: "50vh",
+  };
+
   return (
     <div className="absolute inset-0 w-full h-full bg-black/60">
-      {/* If no image or error: readable gradient + title overlay */}
       {showFallbackUI ? (
         <>
           <div
@@ -387,7 +362,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
         </>
       ) : (
         <>
-          {/* previous blurred background (if present) */}
           {prevExists && prevPlaceholder && (
             <motion.div
               className="absolute inset-0 z-5 will-change-transform"
@@ -407,7 +381,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
             </motion.div>
           )}
 
-          {/* active blurred background */}
           <motion.div
             className="absolute inset-0 z-0 will-change-transform"
             initial={{ opacity: 0.9, scale: 1.03 }}
@@ -426,7 +399,6 @@ export default function Slide({ slide }: { slide?: SlideData }) {
             />
           </motion.div>
 
-          {/* previous crisp foreground */}
           {prevExists && prevPlaceholder && (
             <motion.div
               className="absolute inset-0 z-10 will-change-transform"
@@ -449,13 +421,12 @@ export default function Slide({ slide }: { slide?: SlideData }) {
                   loading="lazy"
                   decoding="async"
                   sizes={sizes}
-                  style={{ objectPosition: "center", maxHeight: "80vh", backgroundColor: "transparent" }}
+                  style={{ ...imgStyles }}
                 />
               </picture>
             </motion.div>
           )}
 
-          {/* current crisp foreground */}
           <motion.div
             className="absolute inset-0 z-20 will-change-transform"
             initial={{ opacity: 0, scale: 1.02 }}
@@ -475,19 +446,13 @@ export default function Slide({ slide }: { slide?: SlideData }) {
                 decoding="async"
                 fetchPriority="high"
                 sizes={sizes}
-                style={{
-                  objectPosition: "center",
-                  transition: "opacity 320ms cubic-bezier(.2,0,.2,1), transform 320ms cubic-bezier(.2,0,.2,1)",
-                  maxHeight: "80vh",
-                  backgroundColor: "transparent",
-                }}
+                style={imgStyles}
                 onLoad={() => setFgLoaded(true)}
                 onError={() => setImgError(true)}
               />
             </picture>
           </motion.div>
 
-          {/* consistent overlay for contrast */}
           <div className="absolute inset-0 z-30 bg-gradient-to-b from-black/18 via-black/6 to-black/34 pointer-events-none" />
         </>
       )}

@@ -10,7 +10,9 @@ import KMFooter from "./components/KMFooter";
 import { AuthProvider } from "./admin/AuthProvider";
 import PrivateRoute from "./admin/PrivateRoute";
 
-/* Lazy pages (keeps bundle small) */
+/* -------------------------
+   Lazy pages (keeps bundle small)
+   ------------------------- */
 const Home = lazy(() => import("./pages/Home"));
 const Issues = lazy(() => import("./pages/Issues"));
 const Contributors = lazy(() => import("./pages/Contributors"));
@@ -24,16 +26,21 @@ const Privacy = lazy(() => import("./pages/Privacy"));
 const DiscussionPage = lazy(() => import("./pages/Discussion"));
 const CommunityRules = lazy(() => import("./pages/CommunityRules"));
 
-/* Admin area (lazy) */
+/* -------------------------
+   Admin area (lazy)
+   ------------------------- */
 const AdminLayout = lazy(() => import("./admin/AdminLayout"));
-const AdminHome = lazy(() => import("./admin/AdminHome")); // << new
+const AdminHome = lazy(() => import("./admin/AdminHome"));
+const AdminProfile = lazy(() => import("./admin/AdminProfile"));
 const IssueListAdmin = lazy(() => import("./admin/IssueList"));
 const SubscriberList = lazy(() => import("./admin/SubscriberList"));
 const ContactList = lazy(() => import("./admin/ContactList"));
 const IssueEditorAdmin = lazy(() => import("./admin/IssueEditor"));
 const ContributorListAdmin = lazy(() => import("./admin/ContributorList"));
 
-/* ErrorBoundary: prevents full-app crash when lazy fails */
+/* -------------------------
+   ErrorBoundary: prevents full-app crash when lazy fails
+   ------------------------- */
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
   { hasError: boolean; error?: Error | null }
@@ -79,7 +86,9 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-/* PageLoader: small, accessible loading UI */
+/* -------------------------
+   PageLoader: small, accessible loading UI
+   ------------------------- */
 function PageLoader({ message = "Loading…" }: { message?: string }) {
   return (
     <div className="min-h-[40vh] flex items-center justify-center">
@@ -115,7 +124,9 @@ function PageLoader({ message = "Loading…" }: { message?: string }) {
   );
 }
 
-/* RouteTransition: animate pages but respect reduced motion */
+/* -------------------------
+   RouteTransition: animate pages but respect reduced motion
+   ------------------------- */
 function RouteTransition({ children }: { children: React.ReactNode }) {
   const reduce = useReducedMotion();
   const variants = reduce
@@ -141,7 +152,9 @@ function RouteTransition({ children }: { children: React.ReactNode }) {
   );
 }
 
-/* Scroll to top on navigation with graceful behavior */
+/* -------------------------
+   Scroll to top on navigation with graceful behavior
+   ------------------------- */
 function ScrollToTopOnNavigate(): null {
   const location = useLocation();
   useEffect(() => {
@@ -154,7 +167,9 @@ function ScrollToTopOnNavigate(): null {
   return null;
 }
 
-/* Low-priority prefetch for lazy pages — helps reduce first paint on navigation */
+/* -------------------------
+   Low-priority prefetch for lazy pages — helps reduce first paint on navigation
+   ------------------------- */
 function usePrefetchLazyPages() {
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -179,6 +194,8 @@ function usePrefetchLazyPages() {
         void import("./admin/ContributorList");
         void import("./admin/SubscriberList");
         void import("./admin/ContactList");
+        void import("./admin/AdminHome");
+        void import("./admin/AdminProfile");
       };
       if ("requestIdleCallback" in window) {
         (window as any).requestIdleCallback(work, { timeout: 2000 });
@@ -191,13 +208,16 @@ function usePrefetchLazyPages() {
   }, []);
 }
 
-/* App root */
+/* -------------------------
+   App root
+   ------------------------- */
 export default function App(): React.ReactElement {
   const location = useLocation();
   const reduce = useReducedMotion();
 
   usePrefetchLazyPages();
 
+  // route key so AnimatePresence knows when to animate between pages
   const routeKey = location.pathname;
 
   return (
@@ -220,6 +240,7 @@ export default function App(): React.ReactElement {
             <Suspense fallback={<PageLoader />}>
               <AnimatePresence mode={reduce ? undefined : "wait"} initial={false}>
                 <Routes location={location} key={routeKey}>
+                  {/* Public pages */}
                   <Route
                     path="/"
                     element={
@@ -328,7 +349,10 @@ export default function App(): React.ReactElement {
                     }
                   />
 
-                  {/* Admin subtree (protected) */}
+                  {/* -------------------------
+                      Admin subtree (protected)
+                      NOTE: AdminLayout handles the sidebar & Outlet for nested admin routes
+                     ------------------------- */}
                   <Route
                     path="/admin/*"
                     element={
@@ -347,11 +371,28 @@ export default function App(): React.ReactElement {
                     <Route path="issues/new" element={<IssueEditorAdmin />} />
                     <Route path="issues/:id" element={<IssueEditorAdmin />} />
                     <Route path="contributors" element={<ContributorListAdmin />} />
-                    {/* new admin list routes */}
-                    <Route path="subscribers" element={<SubscriberList />} />
-                    <Route path="contacts" element={<ContactList />} />
+                    <Route path="profile" element={<AdminProfile/>} />
+
+                    {/* admin lists */}
+                    <Route
+                      path="subscribers"
+                      element={
+                        <Suspense fallback={<PageLoader message="Loading subscribers…" />}>
+                          <SubscriberList />
+                        </Suspense>
+                      }
+                    />
+                    <Route
+                      path="contacts"
+                      element={
+                        <Suspense fallback={<PageLoader message="Loading contacts…" />}>
+                          <ContactList />
+                        </Suspense>
+                      }
+                    />
                   </Route>
 
+                  {/* catch-all */}
                   <Route
                     path="*"
                     element={

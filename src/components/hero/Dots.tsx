@@ -12,7 +12,11 @@ export default function Dots({
   className?: string;
 }) {
   return (
-    <div className={`flex gap-3 items-center justify-center ${className}`} role="tablist" aria-label="Hero slides">
+    <div
+      className={`flex gap-3 items-center justify-center ${className}`}
+      role="tablist"
+      aria-label="Hero slides"
+    >
       {Array.from({ length: count }).map((_, i) => (
         <motion.button
           key={i}
@@ -23,11 +27,9 @@ export default function Dots({
           whileHover={{ scale: 1.16 }}
           whileTap={{ scale: 0.96 }}
           transition={{ type: "spring", stiffness: 320, damping: 24 }}
-          className={`w-4 h-4 rounded-full focus:outline-none ring-offset-2 ring-2 ring-transparent ${
-            i === active
-              ? "bg-gradient-to-r from-karibaTeal to-karibaCoral shadow-lg"
-              : "bg-white/30 hover:bg-white/60"
-          }`}
+          className={`rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white/30 transition-all
+            ${i === active ? "w-4 h-4 md:w-4 md:h-4 bg-gradient-to-r from-karibaTeal to-karibaCoral shadow-lg" 
+                          : "w-3.5 h-3.5 md:w-3.5 md:h-3.5 bg-white/30 hover:bg-white/60"}`}
         />
       ))}
     </div>
