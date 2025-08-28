@@ -26,7 +26,10 @@ const CommunityRules = lazy(() => import("./pages/CommunityRules"));
 
 /* Admin area (lazy) */
 const AdminLayout = lazy(() => import("./admin/AdminLayout"));
+const AdminHome = lazy(() => import("./admin/AdminHome")); // << new
 const IssueListAdmin = lazy(() => import("./admin/IssueList"));
+const SubscriberList = lazy(() => import("./admin/SubscriberList"));
+const ContactList = lazy(() => import("./admin/ContactList"));
 const IssueEditorAdmin = lazy(() => import("./admin/IssueEditor"));
 const ContributorListAdmin = lazy(() => import("./admin/ContributorList"));
 
@@ -174,6 +177,8 @@ function usePrefetchLazyPages() {
         void import("./admin/IssueList");
         void import("./admin/IssueEditor");
         void import("./admin/ContributorList");
+        void import("./admin/SubscriberList");
+        void import("./admin/ContactList");
       };
       if ("requestIdleCallback" in window) {
         (window as any).requestIdleCallback(work, { timeout: 2000 });
@@ -337,11 +342,14 @@ export default function App(): React.ReactElement {
                     }
                   >
                     {/* nested admin routes (handled inside AdminLayout via Outlet) */}
-                    <Route index element={<div className="p-6">Admin dashboard</div>} />
+                    <Route index element={<AdminHome />} />
                     <Route path="issues" element={<IssueListAdmin />} />
                     <Route path="issues/new" element={<IssueEditorAdmin />} />
                     <Route path="issues/:id" element={<IssueEditorAdmin />} />
                     <Route path="contributors" element={<ContributorListAdmin />} />
+                    {/* new admin list routes */}
+                    <Route path="subscribers" element={<SubscriberList />} />
+                    <Route path="contacts" element={<ContactList />} />
                   </Route>
 
                   <Route

@@ -1,14 +1,19 @@
+// src/admin/AdminLayout.tsx
 import { useState, useEffect, useRef, useCallback, type JSX } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../admin/AuthProvider";
 import { motion, useReducedMotion } from "framer-motion";
-import { FiMenu, FiX, FiLogOut, FiEye } from "react-icons/fi";
+import { FiMenu, FiX, FiLogOut, FiEye, FiRefreshCw } from "react-icons/fi";
+import type { AxiosResponse } from "axios";
+import client from "../api/client";
 
-const navItems: { to: string; label: string }[] = [
-  { to: "/admin", label: "Dashboard" },
-  { to: "/admin/issues", label: "Issues" },
-  { to: "/admin/issues/new", label: "New Issue" },
-  { to: "/admin/contributors", label: "Contributors" },
+const navItems: { to: string; label: string; badgeKey?: "subscribers" | "contacts" | null }[] = [
+  { to: "/admin", label: "Dashboard", badgeKey: null },
+  { to: "/admin/issues", label: "Issues", badgeKey: null },
+  { to: "/admin/issues/new", label: "New Issue", badgeKey: null },
+  { to: "/admin/contributors", label: "Contributors", badgeKey: null },
+  { to: "/admin/subscribers", label: "Subscribers", badgeKey: "subscribers" },
+  { to: "/admin/contacts", label: "Contacts", badgeKey: "contacts" },
 ];
 
 function AvatarPlaceholder({ name = "A" }: { name?: string }) {
@@ -20,6 +25,15 @@ function AvatarPlaceholder({ name = "A" }: { name?: string }) {
   );
 }
 
+function CountBadge({ count }: { count: number | null }) {
+  if (count == null) return null;
+  return (
+    <span className="inline-flex items-center justify-center ml-2 min-w-[28px] px-2 py-0.5 rounded-full text-xs font-medium bg-white/6 text-white">
+      {count >= 1000 ? `${Math.floor(count / 1000)}k+` : count}
+    </span>
+  );
+}
+
 export default function AdminLayout(): JSX.Element {
   const { logout, user, isAuthenticated } = useAuth();
   const nav = useNavigate();
@@ -28,9 +42,25 @@ export default function AdminLayout(): JSX.Element {
   const [loggingOut, setLoggingOut] = useState(false);
   const mobileFirstLinkRef = useRef<HTMLAnchorElement | null>(null);
 
+  // counts fetched from API
+  const [subscribersCount, setSubscribersCount] = useState<number | null>(null);
+  const [contactsCount, setContactsCount] = useState<number | null>(null);
+  const [countsLoading, setCountsLoading] = useState(false);
+  const mountedRef = useRef(true);
+
+  // to prevent very frequent manual refreshes
+  const lastRefreshRef = useRef<number>(0);
+  const REFRESH_MIN_INTERVAL = 1500;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   useEffect(() => {
     if (!isAuthenticated) {
-      // if unauthenticated, bounce to login
       nav("/login", { replace: true });
     }
   }, [isAuthenticated, nav]);
@@ -42,44 +72,101 @@ export default function AdminLayout(): JSX.Element {
     }
   }, [open]);
 
-  // robust logout handler: always redirect to /login;
-  // attempt logout() (sync or async) but do not rely on its return value.
+  /**
+   * Fetch counts using Promise.allSettled typed as AxiosResponse so TS knows about `.value.data`.
+   * Handles paginated responses ({ count, results }) and simple arrays.
+   * If API returns 401, try to logout and redirect to login.
+   */
+  const fetchCounts = useCallback(async () => {
+    // simple throttle to avoid spamming server if user clicks refresh repeatedly
+    const now = Date.now();
+    if (now - lastRefreshRef.current < REFRESH_MIN_INTERVAL) return;
+    lastRefreshRef.current = now;
+
+    if (!mountedRef.current) return;
+    setCountsLoading(true);
+    try {
+      // use params rather than inline query string for cleanliness
+      const subsReq = client.get("/subscribers/", { params: { page_size: 1 } });
+      const contReq = client.get("/contacts/", { params: { page_size: 1 } });
+      const settled = await Promise.allSettled<AxiosResponse<any>>([subsReq, contReq]);
+
+      // Helper to extract count from AxiosResponse
+      const extractCount = (res: PromiseSettledResult<AxiosResponse<any>>): number | null => {
+        if (res.status !== "fulfilled") {
+          const reason: any = res.reason;
+          // treat 401 as auth issue
+          const status = reason?.response?.status;
+          if (status === 401) {
+            // Force logout + redirect
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-floating-promises
+              Promise.resolve(logout?.());
+            } catch {
+              // ignore
+            }
+            try {
+              nav("/login", { replace: true });
+            } catch {
+              window.location.href = "/login";
+            }
+          }
+          return null;
+        }
+        const d = res.value?.data;
+        if (!d) return null;
+        if (typeof d.count === "number") return Number(d.count);
+        if (Array.isArray(d)) return d.length;
+        // fallback: if results array exists
+        if (Array.isArray(d.results)) return d.results.length;
+        return null;
+      };
+
+      const newSubsCount = extractCount(settled[0]);
+      const newContactsCount = extractCount(settled[1]);
+
+      if (mountedRef.current) {
+        setSubscribersCount(newSubsCount);
+        setContactsCount(newContactsCount);
+      }
+    } catch (err) {
+      // network-level error — keep existing values and log
+      // eslint-disable-next-line no-console
+      console.warn("[AdminLayout] fetchCounts error:", err);
+    } finally {
+      if (mountedRef.current) setCountsLoading(false);
+    }
+  }, [logout, nav]);
+
+  // fetch initial counts when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      void fetchCounts();
+    }
+  }, [isAuthenticated, fetchCounts]);
+
   const doLogout = useCallback(async () => {
     setOpen(false);
     setLoggingOut(true);
 
-    // debug: note start
-    // console.debug("[AdminLayout] starting logout()");
-
     try {
-      // call logout() safely whether it returns void or a Promise
       await Promise.resolve(logout?.());
-
-      // optionally clear client-side storage here if needed:
-      // localStorage.removeItem("token");
-      // sessionStorage.removeItem("some-key");
     } catch (err) {
-      // log the error so you can inspect it in DevTools
       // eslint-disable-next-line no-console
       console.warn("[AdminLayout] logout() threw:", err);
     } finally {
       setLoggingOut(false);
-
-      // Primary navigation using react-router's navigate
       try {
         nav("/login", { replace: true });
         return;
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.warn("[AdminLayout] navigate to /login failed:", err);
-      }
-
-      // Fallback: hard redirect if navigate didn't work
-      try {
-        window.location.href = "/login";
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error("[AdminLayout] fallback location assignment failed:", err);
+      } catch {
+        // fallback
+        try {
+          window.location.href = "/login";
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.error("[AdminLayout] fallback location assignment failed:", err);
+        }
       }
     }
   }, [logout, nav]);
@@ -136,6 +223,20 @@ export default function AdminLayout(): JSX.Element {
               </button>
 
               <button
+                onClick={() => void fetchCounts()}
+                disabled={countsLoading}
+                title="Refresh counts"
+                className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-white/95 dark:bg-[#05232b] text-sm text-slate-700 dark:text-slate-100 border border-white/8 hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                type="button"
+                aria-label="Refresh counts"
+              >
+                <span className={countsLoading ? "animate-spin" : ""} aria-hidden>
+                  <FiRefreshCw />
+                </span>
+                <span className="sr-only">Refresh</span>
+              </button>
+
+              <button
                 onClick={doLogout}
                 disabled={loggingOut}
                 className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-rose-600 text-white text-sm shadow-sm hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-rose-400/40 disabled:opacity-60 disabled:cursor-not-allowed"
@@ -163,14 +264,19 @@ export default function AdminLayout(): JSX.Element {
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
-                  `block px-3 py-2 rounded-md text-sm font-medium transition ${
+                  `flex items-center justify-between px-3 py-2 rounded-md text-sm font-medium transition ${
                     isActive
                       ? "bg-gradient-to-r from-indigo-500 to-emerald-400 text-white shadow-md"
                       : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
                   }`
                 }
               >
-                {item.label}
+                <span>{item.label}</span>
+                {item.badgeKey === "subscribers" ? (
+                  <CountBadge count={subscribersCount} />
+                ) : item.badgeKey === "contacts" ? (
+                  <CountBadge count={contactsCount} />
+                ) : null}
               </NavLink>
             ))}
           </nav>
@@ -212,7 +318,7 @@ export default function AdminLayout(): JSX.Element {
                 to={item.to}
                 onClick={() => setOpen(false)}
                 className={({ isActive }) =>
-                  `block px-3 py-2 rounded-md text-sm font-medium transition ${
+                  `flex items-center justify-between px-3 py-2 rounded-md text-sm font-medium transition ${
                     isActive
                       ? "bg-gradient-to-r from-indigo-500 to-emerald-400 text-white shadow-md"
                       : "text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -220,7 +326,12 @@ export default function AdminLayout(): JSX.Element {
                 }
                 ref={idx === 0 ? mobileFirstLinkRef : undefined}
               >
-                {item.label}
+                <span>{item.label}</span>
+                {item.badgeKey === "subscribers" ? (
+                  <CountBadge count={subscribersCount} />
+                ) : item.badgeKey === "contacts" ? (
+                  <CountBadge count={contactsCount} />
+                ) : null}
               </NavLink>
             ))}
           </nav>
