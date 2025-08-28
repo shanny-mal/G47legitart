@@ -1,11 +1,6 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { motion, AnimatePresence } from "framer-motion";
+// src/components/hero/HeroSlider.tsx
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import Slide, { type SlideData } from "./Slide";
 import Dots from "./Dots";
 import usePrefersReducedMotion from "./usePrefersReducedMotion";
@@ -24,7 +19,7 @@ const SLIDES: SlideData[] = [
   { id: 9, title: "Season highlights", subtitle: "A selection of powerful visuals", baseName: "hero9" },
 ];
 
-const AUTOPLAY_MS = 5000;
+const AUTOPLAY_MS = 6000;
 const INTERACTION_PAUSE_MS = 8000;
 const PRELOAD_WIDTHS = [480, 768, 1200, 1800, 2400];
 
@@ -33,27 +28,24 @@ export default function HeroSlider(): React.ReactElement {
   const containerRef = useRef<HTMLElement | null>(null);
   const timerRef = useRef<number | null>(null);
   const pausedUntilRef = useRef<number>(0);
-  const lastInteractionRef = useRef<number>(0);
 
   const prefersReducedMotion = usePrefersReducedMotion();
-  const reduce = prefersReducedMotion;
+  const framerReduced = useReducedMotion();
+  const reduce = prefersReducedMotion || framerReduced;
 
   const inView = useInView(containerRef, { rootMargin: "0px", threshold: 0.35 });
   const slides = useMemo(() => SLIDES, []);
 
   const [hoverPause, setHoverPause] = useState(false);
 
-  // Typewriter (respects reduced motion)
   const { typedTitle, typedSubtitle, isTyping } = useTypewriter(
     slides[index].title,
     slides[index].subtitle ?? "",
-    { speed: 36, pauseBetween: 220, instant: prefersReducedMotion }
+    { speed: 34, pauseBetween: 240, instant: prefersReducedMotion }
   );
 
   const noteUserInteraction = useCallback(() => {
-    const until = Date.now() + INTERACTION_PAUSE_MS;
-    pausedUntilRef.current = until;
-    lastInteractionRef.current = Date.now();
+    pausedUntilRef.current = Date.now() + INTERACTION_PAUSE_MS;
     if (timerRef.current) {
       window.clearTimeout(timerRef.current);
       timerRef.current = null;
@@ -75,7 +67,7 @@ export default function HeroSlider(): React.ReactElement {
     setIndex(() => Math.max(0, Math.min(i, slides.length - 1)));
   }, [noteUserInteraction, slides.length]);
 
-  // autoplay (controlled timeout)
+  // controlled autoplay: schedule next slide only when conditions met and when typing finished
   useEffect(() => {
     if (timerRef.current) {
       window.clearTimeout(timerRef.current);
@@ -92,7 +84,6 @@ export default function HeroSlider(): React.ReactElement {
         timerRef.current = null;
       }, AUTOPLAY_MS);
     }
-
     return () => {
       if (timerRef.current) {
         window.clearTimeout(timerRef.current);
@@ -111,7 +102,7 @@ export default function HeroSlider(): React.ReactElement {
     return () => window.removeEventListener("keydown", onKey);
   }, [prev, next]);
 
-  // touch/swipe
+  // swipe
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -133,7 +124,7 @@ export default function HeroSlider(): React.ReactElement {
     };
   }, [prev, next]);
 
-  // preload a sensible size for the *active* slide
+  // preload candidate for current slide (helps avoid flash)
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -147,7 +138,9 @@ export default function HeroSlider(): React.ReactElement {
       link.as = "image";
       link.href = href;
       document.head.appendChild(link);
-      return () => { if (link.parentNode) link.parentNode.removeChild(link); };
+      return () => {
+        if (link.parentNode) link.parentNode.removeChild(link);
+      };
     } catch {
       // ignore
     }
@@ -158,21 +151,21 @@ export default function HeroSlider(): React.ReactElement {
   return (
     <section
       ref={containerRef as React.RefObject<HTMLElement>}
-      className="relative w-full h-[56vh] sm:h-[64vh] md:h-[72vh] lg:h-[82vh] overflow-hidden select-none"
+      className="relative w-full h-[60vh] md:h-[75vh] lg:h-[85vh] overflow-hidden select-none bg-black"
       onMouseEnter={() => { setHoverPause(true); noteUserInteraction(); }}
       onMouseLeave={() => setHoverPause(false)}
       onFocus={() => { setHoverPause(true); noteUserInteraction(); }}
       onBlur={() => setHoverPause(false)}
       aria-roledescription="carousel"
     >
-      <AnimatePresence initial={false} mode="wait">
+      <AnimatePresence initial={false} mode={reduce ? undefined : "wait"}>
         {activeSlide && (
           <motion.div
             key={activeSlide.id}
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: reduce ? 0 : 0.6, ease: [0.4, 0, 0.2, 1] }}
+            transition={{ duration: reduce ? 0 : 0.6, ease: "easeInOut" }}
             className="absolute inset-0 z-10"
             aria-hidden={false}
           >
@@ -181,16 +174,12 @@ export default function HeroSlider(): React.ReactElement {
         )}
       </AnimatePresence>
 
-      {/* subtle overlay for contrast */}
-      <div aria-hidden className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-black/10 to-black/30 mix-blend-multiply" />
+      <div aria-hidden className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-black/10 to-black/25 mix-blend-multiply" />
 
-      {/* content area */}
+      {/* content */}
       <div className="relative z-20 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center">
         <div className="max-w-3xl">
-          <div className="sr-only" aria-live="polite">
-            {activeSlide?.title}: {activeSlide?.subtitle}
-          </div>
-
+          <div className="sr-only" aria-live="polite">{activeSlide?.title}: {activeSlide?.subtitle}</div>
           <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-serif text-white drop-shadow-[0_10px_18px_rgba(0,0,0,0.55)] leading-tight">
             <span aria-hidden>{typedTitle}</span>
             <span className="sr-only">{activeSlide?.title}</span>
@@ -201,7 +190,7 @@ export default function HeroSlider(): React.ReactElement {
             key={index + "-subtitle"}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: reduce ? 0 : 0.36, delay: isTyping ? 0.14 : 0 }}
+            transition={{ duration: reduce ? 0 : 0.36, delay: isTyping ? 0.18 : 0 }}
             className="mt-3 text-sm sm:text-base md:text-lg text-white/90 min-h-[1.5rem]"
           >
             {typedSubtitle}
@@ -209,11 +198,11 @@ export default function HeroSlider(): React.ReactElement {
           </motion.p>
 
           <div className="mt-6 flex gap-3">
-            <motion.a whileHover={reduce ? {} : { y: -3 }} whileTap={reduce ? {} : { scale: 0.98 }} href="/issues" className="inline-flex items-center gap-2 px-4 py-2 bg-white text-karibaNavy rounded-md font-semibold shadow-lg transform transition">
+            <motion.a whileHover={reduce ? {} : { y: -3 }} whileTap={reduce ? {} : { scale: 0.98 }} href="/issues" className="inline-flex items-center gap-2 px-4 py-2 bg-white text-karibaNavy rounded-md font-semibold shadow-lg transform transition" aria-label="Browse issues">
               <span className="text-sm">Browse issues</span>
             </motion.a>
 
-            <motion.a whileHover={reduce ? {} : { scale: 1.03 }} whileTap={reduce ? {} : { scale: 0.98 }} href="/subscribe" className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-teal-400 to-rose-400 text-white rounded-md font-semibold shadow-lg">
+            <motion.a whileHover={reduce ? {} : { scale: 1.03 }} whileTap={reduce ? {} : { scale: 0.98 }} href="/subscribe" className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-karibaTeal to-karibaCoral text-white rounded-md font-semibold shadow-lg" aria-label="Subscribe">
               <span className="text-sm">Subscribe</span>
             </motion.a>
           </div>

@@ -3,10 +3,7 @@ import { useEffect, useState } from "react";
 export default function usePrefersReducedMotion() {
   const [reduced, setReduced] = useState<boolean>(() => {
     try {
-      return (
-        window.matchMedia &&
-        window.matchMedia("(prefers-reduced-motion: reduce)").matches
-      );
+      return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
     } catch {
       return false;
     }
@@ -14,12 +11,12 @@ export default function usePrefersReducedMotion() {
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const handle = (e: MediaQueryListEvent) => setReduced(e.matches);
-    if (mq.addEventListener) mq.addEventListener("change", handle);
-    else mq.addListener(handle);
+    const handler = (e: MediaQueryListEvent | MediaQueryList) => setReduced("matches" in e ? e.matches : (e as any).matches);
+    if (mq.addEventListener) mq.addEventListener("change", handler as any);
+    else mq.addListener(handler as any);
     return () => {
-      if (mq.removeEventListener) mq.removeEventListener("change", handle);
-      else mq.removeListener(handle);
+      if (mq.removeEventListener) mq.removeEventListener("change", handler as any);
+      else mq.removeListener(handler as any);
     };
   }, []);
 

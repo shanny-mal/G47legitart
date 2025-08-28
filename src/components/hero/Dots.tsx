@@ -12,7 +12,7 @@ export default function Dots({
   className?: string;
 }) {
   return (
-    <div className={`flex gap-3 items-center justify-center ${className}`}>
+    <div className={`flex gap-3 items-center justify-center ${className}`} role="tablist" aria-label="Hero slides">
       {Array.from({ length: count }).map((_, i) => (
         <motion.button
           key={i}
@@ -20,13 +20,13 @@ export default function Dots({
           aria-label={`Go to slide ${i + 1}`}
           aria-current={i === active ? "true" : undefined}
           initial={false}
-          whileHover={{ scale: 1.18 }}
-          whileTap={{ scale: 0.95 }}
-          transition={{ type: "spring", stiffness: 300, damping: 22 }}
-          className={`w-3.5 h-3.5 rounded-full focus:outline-none ring-offset-2 ring-2 ring-transparent ${
+          whileHover={{ scale: 1.16 }}
+          whileTap={{ scale: 0.96 }}
+          transition={{ type: "spring", stiffness: 320, damping: 24 }}
+          className={`w-4 h-4 rounded-full focus:outline-none ring-offset-2 ring-2 ring-transparent ${
             i === active
               ? "bg-gradient-to-r from-karibaTeal to-karibaCoral shadow-lg"
-              : "bg-white/30 hover:bg-white/50"
+              : "bg-white/30 hover:bg-white/60"
           }`}
         />
       ))}

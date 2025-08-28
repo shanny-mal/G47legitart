@@ -30,29 +30,29 @@ export default function useTypewriter(title: string, subtitle = "", opts: Option
 
     let titleTimer: number | undefined;
     let subTimer: number | undefined;
-    let titleIdx = 0;
-    let subIdx = 0;
 
     const typeTitle = () =>
       new Promise<void>((resolve) => {
+        let idx = 0;
         const step = () => {
           if (cancel.current || !mounted.current) return resolve();
-          titleIdx++;
-          setTypedTitle(title.slice(0, titleIdx));
-          if (titleIdx >= title.length) return resolve();
+          idx++;
+          setTypedTitle(title.slice(0, idx));
+          if (idx >= title.length) return resolve();
           titleTimer = window.setTimeout(step, speed);
         };
-        if (title.length === 0) return resolve();
+        if (!title) return resolve();
         step();
       });
 
     const typeSubtitle = () =>
       new Promise<void>((resolve) => {
+        let idx = 0;
         const step = () => {
           if (cancel.current || !mounted.current) return resolve();
-          subIdx++;
-          setTypedSubtitle(subtitle.slice(0, subIdx));
-          if (subIdx >= subtitle.length) return resolve();
+          idx++;
+          setTypedSubtitle(subtitle.slice(0, idx));
+          if (idx >= subtitle.length) return resolve();
           subTimer = window.setTimeout(step, speed);
         };
         if (!subtitle) return resolve();

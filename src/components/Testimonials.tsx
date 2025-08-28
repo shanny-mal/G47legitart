@@ -18,6 +18,7 @@ type Review = {
   rating: number;
   text: string;
   avatar?: string | null;
+  time?: string | null; // optional time/date string
 };
 
 const DEFAULT_REVIEWS: Review[] = [
@@ -91,7 +92,13 @@ function normalizeReviews(data: any): Review[] {
       item.avatar ??
       item.picture ??
       item.photo ??
+      item.profile_photo_url_mobile ??
       null;
+
+    const time =
+      (item.time ?? item.created_at ?? item.published_at ?? null) as
+        | string
+        | null;
 
     return {
       id: String(id),
@@ -99,15 +106,27 @@ function normalizeReviews(data: any): Review[] {
       rating,
       text,
       avatar,
+      time,
     } as Review;
   });
 }
 
+/* deterministic color seed derived from text */
+function seedGradient(name = "") {
+  // simple hash -> hue pair
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h << 5) - h + name.charCodeAt(i);
+  const hue = Math.abs(h) % 360;
+  // pick two hues for gradient near each other
+  const h2 = (hue + 35) % 360;
+  return `linear-gradient(135deg, hsl(${hue} 72% 52%), hsl(${h2} 72% 46%))`;
+}
+
 /* ---------------------------
-   Small presentational pieces
+   Presentational pieces
    --------------------------- */
 
-/** compact SVG star (filled) */
+/** star (filled) */
 const StarSVG: React.FC<{ filled?: boolean; size?: number }> = ({
   filled = true,
   size = 14,
@@ -118,7 +137,7 @@ const StarSVG: React.FC<{ filled?: boolean; size?: number }> = ({
     viewBox="0 0 24 24"
     fill={filled ? "currentColor" : "none"}
     stroke="currentColor"
-    strokeWidth={filled ? 0 : 1.4}
+    strokeWidth={filled ? 0 : 1.2}
     strokeLinecap="round"
     strokeLinejoin="round"
     aria-hidden
@@ -154,7 +173,6 @@ const SkeletonCard: React.FC = () => (
   </div>
 );
 
-/** decorative quote SVG (subtle) */
 const QuoteMark: React.FC<{ className?: string }> = ({ className = "" }) => (
   <svg
     viewBox="0 0 24 24"
@@ -169,60 +187,58 @@ const QuoteMark: React.FC<{ className?: string }> = ({ className = "" }) => (
   </svg>
 );
 
+/* animated card */
 const TestimonialCard: React.FC<{ r: Review; index: number }> = React.memo(
   ({ r, index }) => {
     const reduce = useReducedMotion();
 
-    // colorful gradient for placeholder avatar - stable derived seed from name
+    const avatarNode = r.avatar ? (
+      <img
+        src={r.avatar}
+        alt={`${r.author} avatar`}
+        className="w-12 h-12 rounded-full object-cover ring-1 ring-white/90 dark:ring-black/40"
+        loading="lazy"
+        decoding="async"
+        onError={(e) => {
+          // hide broken remote avatar gracefully
+          (e.currentTarget as HTMLImageElement).style.display = "none";
+        }}
+      />
+    ) : (
+      <div
+        className="w-12 h-12 rounded-full flex items-center justify-center font-semibold text-white"
+        aria-hidden
+        style={{ background: seedGradient(r.author) }}
+      >
+        {r.author?.charAt(0)?.toUpperCase() ?? "A"}
+      </div>
+    );
 
     return (
       <motion.figure
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: reduce ? 0 : 0.36, delay: index * 0.06 }}
-        whileHover={
-          reduce
-            ? undefined
-            : { y: -6, boxShadow: "0 18px 40px rgba(2,6,23,0.12)" }
-        }
-        className="relative p-5 rounded-xl bg-white dark:bg-slate-900 shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden"
+        initial={{ opacity: 0, y: 8, scale: 0.996 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: reduce ? 0 : 0.4, delay: index * 0.05 }}
+        whileHover={reduce ? undefined : { y: -6, boxShadow: "0 24px 50px rgba(3,7,18,0.12)" }}
+        className="relative p-5 rounded-xl bg-gradient-to-b from-white to-slate-50 dark:from-[#071122] dark:to-[#04101a] border border-white/6 dark:border-black/20 overflow-hidden"
       >
-        {/* light left accent */}
+        {/* left accent bar */}
         <div
           aria-hidden
-          className="absolute left-0 top-0 bottom-0 w-1"
+          className="absolute left-0 top-0 bottom-0 w-1 rounded-r"
           style={{
-            background:
-              "linear-gradient(180deg, rgba(99,102,241,0.95), rgba(6,182,212,0.95))",
+            background: "linear-gradient(180deg, #6366F1 0%, #06B6D4 100%)",
+            opacity: 0.98,
           }}
         />
 
-        <div className="absolute right-4 top-3 opacity-10 pointer-events-none">
+        <div className="absolute right-4 top-3 opacity-8 pointer-events-none">
           <QuoteMark />
         </div>
 
         <figcaption className="flex items-start gap-4 relative z-10">
-          <div className="flex-none">
-            {r.avatar ? (
-              <img
-                src={r.avatar}
-                alt={`${r.author} avatar`}
-                className="w-12 h-12 rounded-full object-cover ring-1 ring-slate-100 dark:ring-slate-800"
-                loading="lazy"
-                decoding="async"
-              />
-            ) : (
-              <div
-                className={`w-12 h-12 rounded-full flex items-center justify-center font-semibold text-white`}
-                style={{
-                  background: `linear-gradient(135deg, rgba(99,102,241,0.95), rgba(6,182,212,0.95))`,
-                }}
-                aria-hidden
-              >
-                {r.author?.charAt(0)?.toUpperCase() ?? "A"}
-              </div>
-            )}
-          </div>
+          <div className="flex-none">{avatarNode}</div>
 
           <div className="flex-1">
             <div className="flex items-start justify-between gap-4">
@@ -230,13 +246,18 @@ const TestimonialCard: React.FC<{ r: Review; index: number }> = React.memo(
                 <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                   {r.author}
                 </div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  {/* optional date if available */}
-                </div>
+                {r.time && (
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {new Date(r.time).toLocaleDateString()}
+                  </div>
+                )}
               </div>
 
-              <div>
+              <div className="flex items-center gap-2">
                 <StarRating rating={r.rating} />
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  {r.rating.toFixed(1)}
+                </div>
               </div>
             </div>
 
@@ -252,18 +273,36 @@ const TestimonialCard: React.FC<{ r: Review; index: number }> = React.memo(
 TestimonialCard.displayName = "TestimonialCard";
 
 /* ---------------------------
-   Main Testimonials component
+   Main component
    --------------------------- */
 
-const CACHE_KEY = "kariba_testimonials_v1";
+const CACHE_KEY = "kariba_testimonials_v2";
 const MAX_SHOW = 3;
+
+/**
+ * NOTE: If you want to use Google Places safely, implement a server-side endpoint
+ * that fetches from Places using your server-side key:
+ *
+ *    GET /api/google-reviews/?place_id=...  -> proxies Google Places response
+ *
+ * Then set VITE_GOOGLE_USE_CLIENT=false and let the frontend call /api/testimonials.
+ *
+ * If you really want to call Google from the browser (not recommended), set:
+ *   VITE_GOOGLE_USE_CLIENT=true
+ *   VITE_GOOGLE_PLACE_ID=<place_id>
+ *   VITE_GOOGLE_API_KEY=<api_key>
+ *
+ * BE AWARE: exposing the key in the client is a security risk.
+ */
+const GOOGLE_USE_CLIENT = (import.meta.env.VITE_GOOGLE_USE_CLIENT as string) === "true";
+const GOOGLE_PLACE_ID = (import.meta.env.VITE_GOOGLE_PLACE_ID as string) || "";
+const GOOGLE_API_KEY = (import.meta.env.VITE_GOOGLE_API_KEY as string) || "";
 
 const Testimonials: React.FC = () => {
   const [reviews, setReviews] = useState<Review[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
-
   const mounted = useRef(true);
 
   const loadFromCache = useCallback((): Review[] | null => {
@@ -286,24 +325,49 @@ const Testimonials: React.FC = () => {
       setLoading(false);
     }
 
-    const controller = new AbortController();
-    const signal = controller.signal;
+    const ctrl = new AbortController();
+    const signal = ctrl.signal;
 
     (async () => {
       try {
         setLoading(true);
-        const res = await axios.get("/api/testimonials", { signal });
+        setError(null);
+
+        // Prefer backend /api/testimonials (server-side proxy to Google is ideal).
+        // If GOOGLE_USE_CLIENT is true and keys are present, we will attempt an in-browser
+        // call to Google Places (note: exposing API key is a risk).
+        let res;
+        if (GOOGLE_USE_CLIENT && GOOGLE_PLACE_ID && GOOGLE_API_KEY) {
+          // Google Places details endpoint — returns result.reviews
+          const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(
+            GOOGLE_PLACE_ID
+          )}&fields=reviews&key=${encodeURIComponent(GOOGLE_API_KEY)}`;
+          // In many setups the Google Maps Web Service will block cross-origin calls.
+          // If you hit CORS issues, create a server endpoint that proxies this request.
+          res = await axios.get(url, { signal });
+          const list = normalizeReviews(res.data?.result ?? res.data);
+          const final = list.length > 0 ? list : DEFAULT_REVIEWS;
+          if (!mounted.current) return;
+          setReviews(final);
+          try {
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify(final));
+          } catch {}
+          return;
+        }
+
+        // Fallback: request your own backend endpoint that returns an array or object shape
+        // (your existing /api/testimonials). This is preferred since server can call Google.
+        res = await axios.get("/api/testimonials", { signal });
         const normalized = normalizeReviews(res.data);
         const list = normalized.length > 0 ? normalized : DEFAULT_REVIEWS;
         if (!mounted.current) return;
         setReviews(list);
         try {
           sessionStorage.setItem(CACHE_KEY, JSON.stringify(list));
-        } catch {
-          /* ignore storage errors */
-        }
+        } catch {}
       } catch (err: any) {
         if (axios.isCancel?.(err) || err?.name === "CanceledError") {
+          // aborted
           return;
         }
         if (mounted.current) {
@@ -317,7 +381,7 @@ const Testimonials: React.FC = () => {
 
     return () => {
       mounted.current = false;
-      controller.abort();
+      ctrl.abort();
     };
   }, [loadFromCache]);
 
@@ -330,7 +394,7 @@ const Testimonials: React.FC = () => {
 
   return (
     <section
-      className="py-12 bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:via-indigo-900 dark:to-rose-900"
+      className="py-12 bg-gradient-to-br from-white via-slate-50 to-white dark:from-[#071225] dark:via-indigo-900 dark:to-rose-800"
       aria-labelledby="testimonials-heading"
     >
       <div className="max-w-6xl mx-auto px-4">
@@ -355,12 +419,11 @@ const Testimonials: React.FC = () => {
                 try {
                   sessionStorage.removeItem(CACHE_KEY);
                 } catch {}
-                // re-run effect by resetting state
                 setLoading(true);
                 setReviews(null);
                 setError(null);
               }}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-gradient-to-r from-indigo-500 to-emerald-400 text-white text-sm shadow hover:brightness-95 transition"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-md bg-gradient-to-r from-indigo-600 to-emerald-400 text-white text-sm shadow-lg hover:brightness-95 transition"
             >
               Refresh
             </button>
@@ -388,24 +451,32 @@ const Testimonials: React.FC = () => {
           )}
 
           {!loading && visible.length > 0 && (
-            <div
-              className={`grid gap-4 ${
+            <motion.div
+              initial="hidden"
+              animate="show"
+              variants={
                 reduce
-                  ? "grid-cols-1 md:grid-cols-2"
-                  : "grid-cols-1 md:grid-cols-2"
+                  ? undefined
+                  : {
+                      hidden: {},
+                      show: { transition: { staggerChildren: 0.06 } },
+                    }
+              }
+              className={`grid gap-4 ${
+                reduce ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
               }`}
             >
               {visible.map((r, i) => (
                 <TestimonialCard key={r.id} r={r} index={i} />
               ))}
-            </div>
+            </motion.div>
           )}
 
           {!loading && reviews && reviews.length > MAX_SHOW && (
             <div className="mt-6 flex justify-center">
               <button
                 onClick={() => setShowAll((s) => !s)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-indigo-500 to-emerald-400 text-white font-medium shadow hover:brightness-95 transition"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-indigo-600 to-emerald-400 text-white font-medium shadow-lg hover:brightness-95 transition"
                 aria-expanded={showAll}
               >
                 {showAll ? "Show less" : `Show all (${reviews.length})`}
