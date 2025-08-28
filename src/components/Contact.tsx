@@ -13,6 +13,7 @@ import {
   FaPhoneAlt,
   FaPaperPlane,
 } from "react-icons/fa";
+import client from "../api/client";
 
 type FormState = {
   name: string;
@@ -21,7 +22,12 @@ type FormState = {
   hp?: string; // honeypot
 };
 
-const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+const isValidEmail = (v: string) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+
+/* -------------------------
+   Small presentational inputs
+   ------------------------- */
 
 const Input: React.FC<
   React.InputHTMLAttributes<HTMLInputElement> & {
@@ -35,7 +41,10 @@ const Input: React.FC<
         {label}
       </span>
     </div>
-    <div className={`mt-2 relative ${className}`}>
+    <div
+      className={`mt-2 relative ${className}`}
+      // prevent layout-shift for icon
+    >
       {icon && (
         <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-400 pointer-events-none">
           {icon}
@@ -43,8 +52,8 @@ const Input: React.FC<
       )}
       <input
         {...p}
-        className={`block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 transition-shadow ${
-          icon ? "pl-11" : ""
+        className={`block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/40 transition-shadow ${
+          icon ? "pl-12" : ""
         }`}
       />
     </div>
@@ -62,15 +71,19 @@ const Textarea: React.FC<
     </div>
     <textarea
       {...p}
-      className={`mt-2 block w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm h-36 resize-vertical placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 transition-shadow ${className}`}
+      className={`mt-2 block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3 text-sm h-36 resize-vertical placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-300/40 transition-shadow ${className}`}
     />
   </label>
 );
 
+/* -------------------------
+   Contact Info panel
+   ------------------------- */
+
 const ContactInfo: React.FC = () => (
   <div className="space-y-4">
     <div className="flex items-start gap-3">
-      <div className="p-3 rounded-md bg-gradient-to-tr from-emerald-200 to-pink-200 text-emerald-700 dark:text-emerald-200 shadow-sm">
+      <div className="p-3 rounded-md bg-gradient-to-tr from-emerald-200 to-rose-200 text-emerald-800 dark:text-emerald-200 shadow-sm">
         <FaMapMarkerAlt />
       </div>
       <div>
@@ -78,7 +91,7 @@ const ContactInfo: React.FC = () => (
           Editorial HQ — Kariba
         </div>
         <div className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
-          2240 Batonga Kariba
+          2240 Batonga — Kariba
         </div>
       </div>
     </div>
@@ -92,7 +105,7 @@ const ContactInfo: React.FC = () => (
           Email
         </div>
         <a
-          href="mailto:hello@karibamagazine.org"
+          href="mailto:thekaribamagazine@gmail.com"
           className="text-sm text-slate-600 dark:text-slate-400 hover:underline"
         >
           thekaribamagazine@gmail.com
@@ -109,17 +122,21 @@ const ContactInfo: React.FC = () => (
           Phone
         </div>
         <div className="text-sm text-slate-600 dark:text-slate-400">
-          +263776810028
+          +263 776 810 028
         </div>
       </div>
     </div>
 
     <div className="mt-2 text-sm text-slate-600 dark:text-slate-400">
       Press & editorial enquiries: include a clear subject and short summary.
-      We'll try to respond within 48 hours.
+      We'll aim to reply within ~48 hours.
     </div>
   </div>
 );
+
+/* -------------------------
+   Main Contact component
+   ------------------------- */
 
 export default function Contact(): JSX.Element {
   const [form, setForm] = useState<FormState>({
@@ -157,19 +174,18 @@ export default function Contact(): JSX.Element {
       e.preventDefault();
       setErrorMsg(null);
 
-      // honeypot
+      // honeypot (basic bot filter)
       if (form.hp && form.hp.trim().length > 0) {
         setStatus("idle");
         return;
       }
+
       if (
         !form.name.trim() ||
         !isValidEmail(form.email) ||
-        !form.message.trim()
+        form.message.trim().length < 10
       ) {
-        setErrorMsg(
-          "Please complete all required fields with valid information."
-        );
+        setErrorMsg("Please complete all required fields (message min 10 characters).");
         setStatus("error");
         return;
       }
@@ -179,47 +195,43 @@ export default function Contact(): JSX.Element {
 
       const controller = new AbortController();
       abortRef.current = controller;
-      const timeout = window.setTimeout(() => controller.abort(), 10000);
+      const timeout = window.setTimeout(() => controller.abort(), 12000);
 
       try {
-        const res = await fetch("/api/contact", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: form.name.trim(),
-            email: form.email.trim(),
-            message: form.message.trim(),
-          }),
-          signal: controller.signal,
+        const payload = {
+          name: form.name.trim(),
+          email: form.email.trim(),
+          message: form.message.trim(),
+          hp: form.hp ? form.hp.trim() : "",
+        };
+
+        // POST to your API (uses central axios client)
+        const res = await client.post("/contact/", payload, {
+          signal: controller.signal as any,
         });
 
-        clearTimeout(timeout);
-
-        if (!res.ok) {
-          let msg = `Server responded ${res.status}`;
-          try {
-            const body = await res.json();
-            if (body?.error) msg = String(body.error);
-            else if (body?.message) msg = String(body.message);
-          } catch {
-            /* ignore parse errors */
-          }
-          throw new Error(msg);
+        if (res.status >= 200 && res.status < 300) {
+          if (!mounted.current) return;
+          setStatus("success");
+          setForm({ name: "", email: "", message: "", hp: "" });
+          // auto-clear success after a few seconds
+          window.setTimeout(() => {
+            if (mounted.current) setStatus("idle");
+          }, 4500);
+        } else {
+          throw new Error("Server rejected request");
         }
-
-        if (!mounted.current) return;
-        setStatus("success");
-        setForm({ name: "", email: "", message: "", hp: "" });
-        // auto-dismiss success after a bit:
-        window.setTimeout(() => {
-          if (mounted.current) setStatus("idle");
-        }, 4500);
       } catch (err: any) {
         if (!mounted.current) return;
-        if (err?.name === "AbortError") {
+        if (err?.name === "CanceledError" || err?.name === "AbortError") {
           setErrorMsg("Request timed out. Please try again.");
+        } else if (err?.response?.data) {
+          const d = err.response.data;
+          setErrorMsg(
+            d.detail || d.error || (typeof d === "string" ? d : JSON.stringify(d))
+          );
         } else {
-          setErrorMsg(err?.message ?? "Failed to send message. Try later.");
+          setErrorMsg(err?.message || "Failed to send message. Try later.");
         }
         setStatus("error");
       } finally {
@@ -229,6 +241,13 @@ export default function Contact(): JSX.Element {
     },
     [form]
   );
+
+  // Map embed
+  const mapsKey = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string) || "";
+  const q = encodeURIComponent("Kariba, Zimbabwe");
+  const embedSrc = mapsKey
+    ? `https://www.google.com/maps/embed/v1/place?key=${mapsKey}&q=${q}`
+    : `https://www.google.com/maps?q=${q}&output=embed`;
 
   return (
     <section
@@ -241,7 +260,7 @@ export default function Contact(): JSX.Element {
           <motion.div
             initial={prefersReduced ? undefined : { opacity: 0, y: 8 }}
             animate={prefersReduced ? undefined : { opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.45 }}
             className="bg-white dark:bg-slate-900 rounded-2xl p-8 shadow-xl border border-slate-100 dark:border-slate-800"
             aria-labelledby="contact-heading"
           >
@@ -252,8 +271,7 @@ export default function Contact(): JSX.Element {
               Contact & Press
             </h3>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-              Have a tip, story idea, or press enquiry? Send us a message and
-              we’ll get back to you.
+              Have a tip, story idea, or press enquiry? Send us a message and we’ll get back to you.
             </p>
 
             <form onSubmit={submit} className="mt-6 space-y-5" noValidate>
@@ -310,7 +328,7 @@ export default function Contact(): JSX.Element {
                 id="contact-message"
               />
 
-              {/* honeypot (invisible to users) */}
+              {/* honeypot */}
               <label className="sr-only" htmlFor="hp">
                 Leave this field empty
               </label>
@@ -330,10 +348,9 @@ export default function Contact(): JSX.Element {
                   type="submit"
                   whileTap={prefersReduced ? undefined : { scale: 0.985 }}
                   disabled={status === "sending"}
-                  className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-emerald-400 to-rose-400 text-slate-900 rounded-lg font-semibold shadow-md hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-emerald-300/40 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                  className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-indigo-600 to-emerald-400 text-white rounded-lg font-semibold shadow-md hover:brightness-105 focus:outline-none focus:ring-2 focus:ring-indigo-300/30 disabled:opacity-60 disabled:cursor-not-allowed transition"
                   aria-disabled={status === "sending"}
                 >
-                  <span className="sr-only">Send message</span>
                   <FaPaperPlane className="w-4 h-4" aria-hidden />
                   <span>
                     {status === "sending"
@@ -357,9 +374,10 @@ export default function Contact(): JSX.Element {
                 </button>
 
                 <div className="ml-auto text-sm">
-                  <AnimatePresence>
+                  <AnimatePresence initial={false}>
                     {status === "success" && (
                       <motion.div
+                        key="success"
                         initial={{ opacity: 0, y: -6 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -6 }}
@@ -388,6 +406,7 @@ export default function Contact(): JSX.Element {
 
                     {status === "error" && errorMsg && (
                       <motion.div
+                        key="error"
                         initial={{ opacity: 0, y: -6 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -6 }}
@@ -422,6 +441,7 @@ export default function Contact(): JSX.Element {
 
                     {status === "idle" && !errorMsg && (
                       <motion.div
+                        key="note"
                         initial={{ opacity: 0, y: -6 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.28 }}
@@ -469,14 +489,14 @@ export default function Contact(): JSX.Element {
 
                 {!mapOpen ? (
                   <div className="mt-3">
-                    <div className="h-44 bg-slate-50 dark:bg-slate-800 rounded-md flex items-center justify-center text-sm text-slate-500 dark:text-slate-400">
+                    <div className="h-44 bg-gradient-to-br from-slate-50 to-indigo-50 dark:from-slate-800 dark:to-indigo-900 rounded-md flex items-center justify-center text-sm text-slate-500 dark:text-slate-300">
                       Map preview (click to load)
                     </div>
 
                     <div className="mt-3 flex gap-2">
                       <button
                         onClick={() => setMapOpen(true)}
-                        className="px-3 py-2 rounded-md bg-emerald-400 text-slate-900 font-medium shadow hover:brightness-105"
+                        className="px-3 py-2 rounded-md bg-indigo-600 text-white font-medium shadow hover:brightness-105"
                       >
                         Show map
                       </button>
@@ -495,7 +515,7 @@ export default function Contact(): JSX.Element {
                     <div className="w-full h-64 sm:h-80">
                       <iframe
                         title="Kariba location map"
-                        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d... (replace-with-real-embed)"
+                        src={embedSrc}
                         className="w-full h-full border-0 rounded-b-md"
                         loading="lazy"
                         referrerPolicy="no-referrer-when-downgrade"

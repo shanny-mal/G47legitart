@@ -1,3 +1,4 @@
+// src/components/SubscribeButton.tsx
 import React from "react";
 import { Link } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
@@ -7,14 +8,15 @@ const SubscribeButton: React.FC<{ className?: string }> = React.memo(
     const reduceMotion = Boolean(useReducedMotion());
 
     return (
-      <motion.div
-        whileTap={reduceMotion ? {} : { scale: 0.98 }}
-        className={className}
-      >
+      <motion.div whileTap={reduceMotion ? {} : { scale: 0.985 }} className={className}>
         <Link
           to="/subscribe"
-          className="hidden md:inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-karibaTeal to-karibaCoral text-black rounded-full font-semibold shadow-lg hover:-translate-y-0.5 hover:shadow-2xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-karibaCoral/40 transition-transform duration-200"
+          className="hidden md:inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-karibaCoral/40 transition-transform duration-200"
           aria-label="Subscribe"
+          style={{
+            background: "linear-gradient(90deg,#06b6d4 0%, #ff7a7a 60%)",
+            color: "#05202a",
+          }}
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" aria-hidden>
             <path
@@ -38,5 +40,6 @@ const SubscribeButton: React.FC<{ className?: string }> = React.memo(
     );
   }
 );
+
 SubscribeButton.displayName = "SubscribeButton";
 export default SubscribeButton;
